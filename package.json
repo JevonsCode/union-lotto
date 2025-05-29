@@ -8,10 +8,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "crawl": "node data/get-numbers.js",
-    "build:prod": "NODE_ENV=production vite build",
+    "build:prod": "cross-env NODE_ENV=production vite build",
     "deploy": "npm run build:prod && gh-pages -d dist"
   },
-  "keywords": ["双色球", "彩票分析", "Vue3", "数据分析", "预测算法"],
+  "keywords": [
+    "双色球",
+    "彩票分析",
+    "Vue3",
+    "数据分析",
+    "预测算法"
+  ],
   "author": "JevonsCode",
   "license": "MIT",
   "homepage": "https://jevonscode.github.io/union-lotto/",
@@ -29,7 +35,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.3",
-    "vite": "^6.3.5",
-    "gh-pages": "^6.1.1"
+    "cross-env": "^7.0.3",
+    "gh-pages": "^6.1.1",
+    "vite": "^6.3.5"
   }
 }
