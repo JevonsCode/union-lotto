@@ -1,0 +1,35 @@
+{
+  "name": "union-lotto",
+  "description": "双色球数据分析系统 - Vue 3 + Pinia + Arco Design",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "crawl": "node data/get-numbers.js",
+    "build:prod": "NODE_ENV=production vite build",
+    "deploy": "npm run build:prod && gh-pages -d dist"
+  },
+  "keywords": ["双色球", "彩票分析", "Vue3", "数据分析", "预测算法"],
+  "author": "JevonsCode",
+  "license": "MIT",
+  "homepage": "https://jevonscode.github.io/union-lotto/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JevonsCode/union-lotto.git"
+  },
+  "dependencies": {
+    "@arco-design/web-vue": "^2.57.0",
+    "echarts": "^5.6.0",
+    "pinia": "^3.0.2",
+    "sass": "^1.89.0",
+    "vue": "^3.5.13",
+    "vue-echarts": "^7.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "vite": "^6.3.5",
+    "gh-pages": "^6.1.1"
+  }
+}
