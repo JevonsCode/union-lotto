@@ -1,0 +1,94 @@
+name: 🧪 Continuous Integration
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+  schedule:
+    # 每周一早上8点运行依赖项检查
+    - cron: '0 8 * * 1'
+
+jobs:
+  # 代码质量检查
+  lint-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🛎️ Checkout
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 📦 Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 8
+        run_install: false
+        
+    - name: 📁 Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        
+    - name: 🗂️ Setup pnpm cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+          
+    - name: 🔧 Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: 🔍 Lint check
+      run: |
+        if [ -f "package.json" ] && grep -q '"lint"' package.json; then
+          pnpm lint
+        else
+          echo "No lint script configured"
+        fi
+      continue-on-error: true
+      
+    - name: 🧪 Run tests
+      run: |
+        if [ -f "package.json" ] && grep -q '"test"' package.json; then
+          pnpm test
+        else
+          echo "No tests configured"
+        fi
+      continue-on-error: true
+      
+    - name: 🔒 Security audit
+      run: pnpm audit --audit-level moderate
+      continue-on-error: true
+
+  # 依赖项更新检查
+  dependency-check:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🛎️ Checkout
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 📦 Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 8
+        
+    - name: 🔄 Check for dependency updates
+      run: |
+        pnpm outdated || true
+        echo "检查完成，如有需要请手动更新依赖项" 

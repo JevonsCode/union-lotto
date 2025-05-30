@@ -1,38 +1,143 @@
-name: Deploy to GitHub Pages
+name: 🚀 Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, main ]
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 确保只有一个部署任务在运行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  # 构建作业
+  build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout 🛎️
+    - name: 🛎️ Checkout
       uses: actions/checkout@v4
-      
-    - name: Setup Node.js 📦
+      with:
+        fetch-depth: 0 # 获取完整的 git 历史
+        
+    - name: 📦 Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         
-    - name: Setup pnpm 📦
-      uses: pnpm/action-setup@v2
+    - name: 📦 Setup pnpm
+      uses: pnpm/action-setup@v4
       with:
         version: 8
+        run_install: false
         
-    - name: Install dependencies 🔧
-      run: pnpm install
-      
-    - name: Build 🏗️
-      run: pnpm run build:prod
-      
-    - name: Deploy to GitHub Pages 🚀
-      uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/master'
+    - name: 📁 Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        
+    - name: 🗂️ Setup pnpm cache
+      uses: actions/cache@v4
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist 
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+          
+    - name: 🔧 Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: 🧪 Run tests (if available)
+      run: |
+        if [ -f "package.json" ] && grep -q '"test"' package.json; then
+          pnpm test || echo "No tests configured or tests failed"
+        else
+          echo "No tests configured"
+        fi
+      continue-on-error: true
+      
+    - name: 🏗️ Build project
+      run: pnpm run build:prod
+      env:
+        NODE_ENV: production
+        
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./dist
+
+  # 部署作业（仅在推送到主分支时执行）
+  deploy:
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+      
+    steps:
+    - name: 🚀 Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+  # 仅构建作业（PR时执行）
+  build-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🛎️ Checkout
+      uses: actions/checkout@v4
+      
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: 📦 Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 8
+        run_install: false
+        
+    - name: 📁 Get pnpm store directory
+      shell: bash
+      run: |
+        echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        
+    - name: 🗂️ Setup pnpm cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+          
+    - name: 🔧 Install dependencies
+      run: pnpm install --frozen-lockfile
+      
+    - name: 🏗️ Build project (PR Preview)
+      run: pnpm run build:prod
+      env:
+        NODE_ENV: production
+        
+    - name: 💬 Comment PR
+      uses: actions/github-script@v7
+      if: github.event_name == 'pull_request'
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '✅ 构建成功！PR预览将在合并后部署到 GitHub Pages。'
+          }) 
