@@ -56,6 +56,10 @@ jobs:
       run: |
         pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
       
+    - name: 🕷️ Update lottery data
+      run: pnpm crawl
+      continue-on-error: true
+      
     - name: 🧪 Run tests (if available)
       run: |
         if [ -f "package.json" ] && grep -q '"test"' package.json; then
@@ -126,6 +130,10 @@ jobs:
     - name: 🔧 Install dependencies
       run: |
         pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
+      
+    - name: 🕷️ Update lottery data
+      run: pnpm crawl
+      continue-on-error: true
       
     - name: 🏗️ Build project (PR Preview)
       run: pnpm run build:prod

@@ -46,6 +46,10 @@ jobs:
       run: |
         pnpm install --frozen-lockfile || pnpm install --no-frozen-lockfile
       
+    - name: 🕷️ Update lottery data
+      run: pnpm crawl
+      continue-on-error: true
+      
     - name: 🔍 Lint check
       run: |
         if [ -f "package.json" ] && grep -q '"lint"' package.json; then

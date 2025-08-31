@@ -64,6 +64,32 @@ git commit -m "chore: regenerate pnpm-lock.yaml"
 - 文件：`.github/workflows/deploy.yml`
 - 功能：自动部署到 GitHub Pages
 
+### 数据更新配置
+- 文件：`.github/workflows/update-data.yml`
+- 功能：自动更新爬虫数据
+- 触发条件：
+  - 每天凌晨2点自动运行
+  - 手动触发
+  - 爬虫脚本更新时触发
+
+## 数据更新功能
+
+### 自动更新机制
+- **定时更新**：每天凌晨2点自动运行爬虫更新数据
+- **手动触发**：可在 GitHub Actions 页面手动触发数据更新
+- **代码触发**：当爬虫脚本或 package.json 更新时自动触发
+
+### 更新流程
+1. 运行爬虫脚本获取最新数据
+2. 检查数据文件是否有变化
+3. 如果有新数据，自动提交到仓库
+4. 生成更新摘要报告
+
+### 数据文件
+- **源文件**：`data/get-numbers.js` - 爬虫脚本
+- **数据文件**：`data/lotto-data.json` - 爬取的历史数据
+- **公共文件**：`public/data/lotto-data.json` - 前端访问的数据文件
+
 ## 故障排除步骤
 
 1. **检查版本兼容性**

@@ -27,6 +27,10 @@ jobs:
     - name: 🔧 Install dependencies
       run: pnpm install
       
+    - name: 🕷️ Update lottery data
+      run: pnpm crawl
+      continue-on-error: true
+      
     - name: 🏗️ Build project
       run: pnpm build
       
