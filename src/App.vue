@@ -1,24 +1,21 @@
 <script setup>
-import { onMounted, computed } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import {
-  CanvasRenderer
-} from 'echarts/renderers'
-import {
-  BarChart,
-  LineChart
-} from 'echarts/charts'
+import { onMounted, computed } from "vue";
+import VChart from "vue-echarts";
+import { use } from "echarts/core";
+import { CanvasRenderer } from "echarts/renderers";
+import { BarChart, LineChart } from "echarts/charts";
 import {
   TitleComponent,
   TooltipComponent,
   LegendComponent,
   GridComponent,
   MarkLineComponent,
-  MarkPointComponent
-} from 'echarts/components'
-import { useLottoStore } from '@/stores/lottoStore'
-import PredictionGenerator from '@/components/PredictionGenerator.vue'
+  MarkPointComponent,
+} from "echarts/components";
+import { useLottoStore } from "@/stores/lottoStore";
+import PredictionGenerator from "@/components/PredictionGenerator.vue";
+import HistoryQuery from "@/components/HistoryQuery.vue";
+import SequenceAnalysis from "@/components/SequenceAnalysis.vue";
 
 use([
   CanvasRenderer,
@@ -29,390 +26,458 @@ use([
   LegendComponent,
   GridComponent,
   MarkLineComponent,
-  MarkPointComponent
-])
+  MarkPointComponent,
+]);
 
-const lottoStore = useLottoStore()
+const lottoStore = useLottoStore();
 
 const columns = [
   {
-    title: '期数',
-    dataIndex: 'issue',
+    title: "期数",
+    dataIndex: "issue",
     width: 100,
-    sorter: (a, b) => parseInt(a.issue) - parseInt(b.issue)
+    sorter: (a, b) => parseInt(a.issue) - parseInt(b.issue),
   },
   {
-    title: '开奖日期',
-    dataIndex: 'openTime',
+    title: "开奖日期",
+    dataIndex: "openTime",
     width: 120,
-    sorter: (a, b) => new Date(a.openTime) - new Date(b.openTime)
+    sorter: (a, b) => new Date(a.openTime) - new Date(b.openTime),
   },
   {
-    title: '红球',
-    dataIndex: 'frontWinningNum',
-    slotName: 'frontWinningNum',
-    width: 200
+    title: "红球",
+    dataIndex: "frontWinningNum",
+    slotName: "frontWinningNum",
+    width: 200,
   },
   {
-    title: '蓝球',
-    dataIndex: 'backWinningNum',
-    slotName: 'backWinningNum',
-    width: 80
+    title: "开奖顺序",
+    dataIndex: "seqFrontWinningNum",
+    slotName: "seqFrontWinningNum",
+    width: 200,
   },
   {
-    title: '销售额',
-    dataIndex: 'saleMoney',
-    slotName: 'saleMoney',
-    width: 120
+    title: "蓝球",
+    dataIndex: "backWinningNum",
+    slotName: "backWinningNum",
+    width: 80,
   },
   {
-    title: '奖池金额',
-    dataIndex: 'prizePoolMoney',
-    slotName: 'prizePoolMoney',
+    title: "销售额",
+    dataIndex: "saleMoney",
+    slotName: "saleMoney",
     width: 120,
   },
   {
-    title: '星期',
-    dataIndex: 'week',
-    width: 80
-  }
-]
+    title: "奖池金额",
+    dataIndex: "prizePoolMoney",
+    slotName: "prizePoolMoney",
+    width: 120,
+  },
+  {
+    title: "星期",
+    dataIndex: "week",
+    width: 80,
+  },
+];
 
 const redBallOption = computed(() => {
-  const dataToUse = lottoStore.filteredData.length > 0 ? lottoStore.filteredData : lottoStore.data
-  if (dataToUse.length === 0) return {}
-  
-  let redBallStats = lottoStore.getRedBallStats(dataToUse)
-  
+  const dataToUse =
+    lottoStore.filteredData.length > 0
+      ? lottoStore.filteredData
+      : lottoStore.data;
+  if (dataToUse.length === 0) return {};
+
+  let redBallStats = lottoStore.getRedBallStats(dataToUse);
+
   // 根据排序方式排序
-  if (lottoStore.sortParams.redBallSort === 'count') {
-    redBallStats = redBallStats.sort((a, b) => b.count - a.count)
+  if (lottoStore.sortParams.redBallSort === "count") {
+    redBallStats = redBallStats.sort((a, b) => b.count - a.count);
   } else {
-    redBallStats = redBallStats.sort((a, b) => a.number - b.number)
+    redBallStats = redBallStats.sort((a, b) => a.number - b.number);
   }
-  
+
   return {
-    title: { 
+    title: {
       text: `红球号码分布 (1-33) - ${dataToUse.length}期数据`,
-      left: 'center',
+      left: "center",
       textStyle: {
         fontSize: 16,
-        fontWeight: 'bold'
-      }
+        fontWeight: "bold",
+      },
     },
-    tooltip: { 
-      trigger: 'axis',
-      backgroundColor: 'rgba(50,50,50,0.8)',
-      textStyle: { color: '#fff' },
-      formatter: function(params) {
-        const data = params[0]
-        const item = redBallStats[data.dataIndex]
-        return `号码: ${item.number.toString().padStart(2, '0')}<br/>出现次数: ${data.value}<br/>出现率: ${item.percentage}%`
-      }
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(50,50,50,0.8)",
+      textStyle: { color: "#fff" },
+      formatter: function (params) {
+        const data = params[0];
+        const item = redBallStats[data.dataIndex];
+        return `号码: ${item.number
+          .toString()
+          .padStart(2, "0")}<br/>出现次数: ${data.value}<br/>出现率: ${
+          item.percentage
+        }%`;
+      },
     },
     xAxis: {
-      type: 'category',
-      data: redBallStats.map(item => item.number.toString().padStart(2, '0')),
+      type: "category",
+      data: redBallStats.map((item) => item.number.toString().padStart(2, "0")),
       axisLabel: {
         interval: 0,
         rotate: 0,
-        fontSize: 10
+        fontSize: 10,
       },
       axisTick: {
-        alignWithLabel: true
-      }
+        alignWithLabel: true,
+      },
     },
-    yAxis: { 
-      type: 'value',
-      name: '出现次数',
+    yAxis: {
+      type: "value",
+      name: "出现次数",
       nameTextStyle: {
-        fontSize: 12
-      }
+        fontSize: 12,
+      },
     },
-    series: [{
-      data: redBallStats.map((item, index) => ({
-        value: item.count,
-        itemStyle: {
-          color: item.count === Math.max(...redBallStats.map(s => s.count)) ? '#ff4d4f' : 
-                 item.count === Math.min(...redBallStats.map(s => s.count)) ? '#ffa39e' : '#ff7875'
-        }
-      })),
-      type: 'bar',
-      barWidth: '60%',
-      markLine: {
-        data: [{
-          type: 'average',
-          name: '平均值',
-          lineStyle: {
-            color: '#722ed1'
-          }
-        }],
-        label: {
-          formatter: '平均: {c}'
-        }
-      }
-    }],
+    series: [
+      {
+        data: redBallStats.map((item, index) => ({
+          value: item.count,
+          itemStyle: {
+            color:
+              item.count === Math.max(...redBallStats.map((s) => s.count))
+                ? "#ff4d4f"
+                : item.count === Math.min(...redBallStats.map((s) => s.count))
+                ? "#ffa39e"
+                : "#ff7875",
+          },
+        })),
+        type: "bar",
+        barWidth: "60%",
+        markLine: {
+          data: [
+            {
+              type: "average",
+              name: "平均值",
+              lineStyle: {
+                color: "#722ed1",
+              },
+            },
+          ],
+          label: {
+            formatter: "平均: {c}",
+          },
+        },
+      },
+    ],
     grid: {
       left: 80,
       right: 80,
       bottom: 60,
-      top: 60
-    }
-  }
-})
+      top: 60,
+    },
+  };
+});
 
 const blueBallOption = computed(() => {
-  const dataToUse = lottoStore.filteredData.length > 0 ? lottoStore.filteredData : lottoStore.data
-  if (dataToUse.length === 0) return {}
-  
-  let blueBallStats = lottoStore.getBlueBallStats(dataToUse)
-  
+  const dataToUse =
+    lottoStore.filteredData.length > 0
+      ? lottoStore.filteredData
+      : lottoStore.data;
+  if (dataToUse.length === 0) return {};
+
+  let blueBallStats = lottoStore.getBlueBallStats(dataToUse);
+
   // 根据排序方式排序
-  if (lottoStore.sortParams.blueBallSort === 'count') {
-    blueBallStats = blueBallStats.sort((a, b) => b.count - a.count)
+  if (lottoStore.sortParams.blueBallSort === "count") {
+    blueBallStats = blueBallStats.sort((a, b) => b.count - a.count);
   } else {
-    blueBallStats = blueBallStats.sort((a, b) => a.number - b.number)
+    blueBallStats = blueBallStats.sort((a, b) => a.number - b.number);
   }
-  
+
   return {
-    title: { 
+    title: {
       text: `蓝球号码分布 (1-16) - ${dataToUse.length}期数据`,
-      left: 'center',
+      left: "center",
       textStyle: {
         fontSize: 16,
-        fontWeight: 'bold'
-      }
+        fontWeight: "bold",
+      },
     },
-    tooltip: { 
-      trigger: 'axis',
-      backgroundColor: 'rgba(50,50,50,0.8)',
-      textStyle: { color: '#fff' },
-      formatter: function(params) {
-        const data = params[0]
-        const item = blueBallStats[data.dataIndex]
-        return `号码: ${item.number.toString().padStart(2, '0')}<br/>出现次数: ${data.value}<br/>出现率: ${item.percentage}%`
-      }
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(50,50,50,0.8)",
+      textStyle: { color: "#fff" },
+      formatter: function (params) {
+        const data = params[0];
+        const item = blueBallStats[data.dataIndex];
+        return `号码: ${item.number
+          .toString()
+          .padStart(2, "0")}<br/>出现次数: ${data.value}<br/>出现率: ${
+          item.percentage
+        }%`;
+      },
     },
     xAxis: {
-      type: 'category',
-      data: blueBallStats.map(item => item.number.toString().padStart(2, '0')),
+      type: "category",
+      data: blueBallStats.map((item) =>
+        item.number.toString().padStart(2, "0")
+      ),
       axisLabel: {
         interval: 0,
-        fontSize: 11
+        fontSize: 11,
       },
       axisTick: {
-        alignWithLabel: true
-      }
+        alignWithLabel: true,
+      },
     },
-    yAxis: { 
-      type: 'value',
-      name: '出现次数',
+    yAxis: {
+      type: "value",
+      name: "出现次数",
       nameTextStyle: {
-        fontSize: 12
-      }
+        fontSize: 12,
+      },
     },
-    series: [{
-      data: blueBallStats.map((item, index) => ({
-        value: item.count,
-        itemStyle: {
-          color: item.count === Math.max(...blueBallStats.map(s => s.count)) ? '#1890ff' : 
-                 item.count === Math.min(...blueBallStats.map(s => s.count)) ? '#91d5ff' : '#40a9ff'
-        }
-      })),
-      type: 'bar',
-      barWidth: '70%',
-      markLine: {
-        data: [{
-          type: 'average',
-          name: '平均值',
-          lineStyle: {
-            color: '#722ed1'
-          }
-        }],
-        label: {
-          formatter: '平均: {c}'
-        }
-      }
-    }],
+    series: [
+      {
+        data: blueBallStats.map((item, index) => ({
+          value: item.count,
+          itemStyle: {
+            color:
+              item.count === Math.max(...blueBallStats.map((s) => s.count))
+                ? "#1890ff"
+                : item.count === Math.min(...blueBallStats.map((s) => s.count))
+                ? "#91d5ff"
+                : "#40a9ff",
+          },
+        })),
+        type: "bar",
+        barWidth: "70%",
+        markLine: {
+          data: [
+            {
+              type: "average",
+              name: "平均值",
+              lineStyle: {
+                color: "#722ed1",
+              },
+            },
+          ],
+          label: {
+            formatter: "平均: {c}",
+          },
+        },
+      },
+    ],
     grid: {
       left: 80,
       right: 80,
       bottom: 60,
-      top: 60
-    }
-  }
-})
+      top: 60,
+    },
+  };
+});
 
 const trendOption = computed(() => {
-  const dataToUse = lottoStore.filteredData.length > 0 ? lottoStore.filteredData : lottoStore.data
-  if (dataToUse.length === 0) return {}
-  
-  const trendData = lottoStore.getTrendData(100, dataToUse)
-  
+  const dataToUse =
+    lottoStore.filteredData.length > 0
+      ? lottoStore.filteredData
+      : lottoStore.data;
+  if (dataToUse.length === 0) return {};
+
+  const trendData = lottoStore.getTrendData(100, dataToUse);
+
   return {
-    title: { 
+    title: {
       text: `奖池金额趋势 - ${dataToUse.length}期数据`,
-      left: 'center',
+      left: "center",
       textStyle: {
         fontSize: 16,
-        fontWeight: 'bold'
-      }
+        fontWeight: "bold",
+      },
     },
-    tooltip: { 
-      trigger: 'axis',
-      backgroundColor: 'rgba(50,50,50,0.8)',
-      textStyle: { color: '#fff' },
-      formatter: function(params) {
-        const data = params[0]
-        const amount = data.value
-        const formattedAmount = amount === 0 || !amount ? '--' : lottoStore.formatMoney(amount) + '元'
-        return `期数: ${data.name}<br/>奖池金额: ${formattedAmount}`
-      }
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(50,50,50,0.8)",
+      textStyle: { color: "#fff" },
+      formatter: function (params) {
+        const data = params[0];
+        const amount = data.value;
+        const formattedAmount =
+          amount === 0 || !amount
+            ? "--"
+            : lottoStore.formatMoney(amount) + "元";
+        return `期数: ${data.name}<br/>奖池金额: ${formattedAmount}`;
+      },
     },
     xAxis: {
-      type: 'category',
-      data: trendData.map(item => item.issue),
+      type: "category",
+      data: trendData.map((item) => item.issue),
       axisLabel: {
         interval: Math.max(0, Math.floor(trendData.length / 10) - 1),
-        fontSize: 10
-      }
+        fontSize: 10,
+      },
     },
-    yAxis: { 
-      type: 'value',
-      name: '奖池金额',
+    yAxis: {
+      type: "value",
+      name: "奖池金额",
       nameTextStyle: {
-        fontSize: 12
+        fontSize: 12,
       },
       axisLabel: {
-        formatter: function(value) {
-          if (value === 0) return '--'
-          return (value / 100000000).toFixed(1) + '亿'
-        }
-      }
+        formatter: function (value) {
+          if (value === 0) return "--";
+          return (value / 100000000).toFixed(1) + "亿";
+        },
+      },
     },
-    series: [{
-      name: '奖池金额',
-      data: trendData.map(item => item.prizePool),
-      type: 'line',
-      smooth: true,
-      lineStyle: {
-        color: '#52c41a',
-        width: 2
+    series: [
+      {
+        name: "奖池金额",
+        data: trendData.map((item) => item.prizePool),
+        type: "line",
+        smooth: true,
+        lineStyle: {
+          color: "#52c41a",
+          width: 2,
+        },
+        itemStyle: {
+          color: "#52c41a",
+          borderColor: "#fff",
+          borderWidth: 2,
+        },
+        areaStyle: {
+          color: {
+            type: "linear",
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              {
+                offset: 0,
+                color: "rgba(82, 196, 26, 0.4)",
+              },
+              {
+                offset: 1,
+                color: "rgba(82, 196, 26, 0.1)",
+              },
+            ],
+          },
+        },
+        markPoint: {
+          data: [
+            { type: "max", name: "最大值" },
+            { type: "min", name: "最小值" },
+          ],
+        },
       },
-      itemStyle: { 
-        color: '#52c41a',
-        borderColor: '#fff',
-        borderWidth: 2
-      },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
-          colorStops: [{
-            offset: 0, color: 'rgba(82, 196, 26, 0.4)'
-          }, {
-            offset: 1, color: 'rgba(82, 196, 26, 0.1)'
-          }]
-        }
-      },
-      markPoint: {
-        data: [
-          {type: 'max', name: '最大值'},
-          {type: 'min', name: '最小值'}
-        ]
-      }
-    }],
+    ],
     grid: {
       left: 80,
       right: 80,
       bottom: 60,
-      top: 60
-    }
-  }
-})
+      top: 60,
+    },
+  };
+});
 
 // 格式化统计值
 const formatStatisticValue = (value) => {
   if (value >= 100000000) {
-    return (value / 100000000).toFixed(2) + '亿'
+    return (value / 100000000).toFixed(2) + "亿";
   } else if (value >= 10000) {
-    return (value / 10000).toFixed(2) + '万'
+    return (value / 10000).toFixed(2) + "万";
   }
-  return value.toLocaleString()
-}
+  return value.toLocaleString();
+};
 
 // 事件处理
 const handlePageChange = (page) => {
-  lottoStore.pagination.current = page
-}
+  lottoStore.pagination.current = page;
+};
 
 const handlePageSizeChange = (pageSize) => {
-  lottoStore.pagination.pageSize = pageSize
-  lottoStore.pagination.current = 1
-}
-
+  lottoStore.pagination.pageSize = pageSize;
+  lottoStore.pagination.current = 1;
+};
 
 onMounted(() => {
-  lottoStore.loadData()
-})
+  lottoStore.loadData();
+});
 </script>
 
 <template>
   <div id="app">
     <a-layout class="layout">
-      <a-layout-header class="header">
-      </a-layout-header>
-      
+      <a-layout-header class="header"> </a-layout-header>
+
       <a-layout-content class="content">
         <div class="container">
-
           <!-- 预测生成组件 -->
           <PredictionGenerator />
+          
+          <!-- 历史查询组件 -->
+          <HistoryQuery />
+          
+          <!-- 开奖顺序分析组件 -->
+          <SequenceAnalysis />
 
           <!-- 搜索和筛选区域 -->
-          <a-card title="数据查询" class="search-card" style="margin-bottom: 16px;">
+          <a-card
+            title="数据查询"
+            class="search-card"
+            style="margin-bottom: 16px"
+          >
             <a-row :gutter="16" align="middle">
-              <a-col :span="5">
-                <div style="margin-bottom: 8px; font-weight: 500;">开始期数</div>
-                <a-select 
-                  v-model="lottoStore.searchParams.startIssue" 
+              <a-col>
+                <div style="margin-bottom: 8px; font-weight: 500">开始期数</div>
+                <a-select
+                  v-model="lottoStore.searchParams.startIssue"
                   placeholder="请选择开始期数"
                   :options="lottoStore.getIssueList()"
                   allow-clear
                   show-search
-                  :filter-option="(input, option) => option.label.includes(input)"
-                  style="width: 100%;"
+                  :filter-option="
+                    (input, option) => option.label.includes(input)
+                  "
+                  style="width: 100%"
                 />
               </a-col>
-              <a-col :span="5">
-                <div style="margin-bottom: 8px; font-weight: 500;">结束期数</div>
-                <a-select 
-                  v-model="lottoStore.searchParams.endIssue" 
+              <a-col>
+                <div style="margin-bottom: 8px; font-weight: 500">结束期数</div>
+                <a-select
+                  v-model="lottoStore.searchParams.endIssue"
                   placeholder="请选择结束期数"
                   :options="lottoStore.getIssueList()"
                   allow-clear
                   show-search
-                  :filter-option="(input, option) => option.label.includes(input)"
-                  style="width: 100%;"
+                  :filter-option="
+                    (input, option) => option.label.includes(input)
+                  "
+                  style="width: 100%"
                 />
               </a-col>
-              <a-col :span="14">
-                <div style="margin-bottom: 8px;">&nbsp;</div>
-                <a-button type="primary" @click="lottoStore.handleSearch">查询</a-button>
-                <a-button style="margin-left: 8px;" @click="lottoStore.handleReset">重置</a-button>
-              </a-col>
             </a-row>
+            <a-col :span="14">
+              <div style="margin-bottom: 8px">&nbsp;</div>
+              <a-button type="primary" @click="lottoStore.handleSearch"
+                >查询</a-button
+              >
+              <a-button style="margin-left: 8px" @click="lottoStore.handleReset"
+                >重置</a-button
+              >
+            </a-col>
           </a-card>
 
-
           <!-- 统计卡片 -->
-          <a-row :gutter="16" style="margin-bottom: 16px;">
+          <a-row :gutter="16" style="margin-bottom: 16px">
             <a-col>
               <a-card>
-                <a-statistic title="总期数" :value="lottoStore.statistics.totalIssues" />
+                <a-statistic
+                  title="总期数"
+                  :value="lottoStore.statistics.totalIssues"
+                />
               </a-card>
             </a-col>
             <!-- <a-col :span="6">
@@ -448,10 +513,10 @@ onMounted(() => {
           </a-row>
 
           <!-- 数据表格 -->
-          <a-card title="开奖数据" style="margin-bottom: 16px;">
-            <a-table 
-              :columns="columns" 
-              :data="lottoStore.paginatedData" 
+          <a-card title="开奖数据" style="margin-bottom: 16px">
+            <a-table
+              :columns="columns"
+              :data="lottoStore.paginatedData"
               :pagination="lottoStore.pagination"
               :loading="lottoStore.loading"
               @page-change="handlePageChange"
@@ -459,13 +524,28 @@ onMounted(() => {
             >
               <template #frontWinningNum="{ record }">
                 <div class="number-display">
-                  <span 
-                    v-for="num in record.frontWinningNum.split(' ')" 
+                  <span
+                    v-for="num in record.frontWinningNum.split(' ')"
                     :key="num"
                     class="red-ball"
                   >
                     {{ num }}
                   </span>
+                </div>
+              </template>
+              <template #seqFrontWinningNum="{ record }">
+                <div v-if="record.seqFrontWinningNum" class="number-display">
+                  <span
+                    v-for="(num, index) in record.seqFrontWinningNum.split(' ')"
+                    :key="index"
+                    class="sequence-ball"
+                    :title="`第${index + 1}位`"
+                  >
+                    {{ num }}
+                  </span>
+                </div>
+                <div v-else class="no-sequence">
+                  <span class="no-data">无数据</span>
                 </div>
               </template>
               <template #backWinningNum="{ record }">
@@ -483,43 +563,60 @@ onMounted(() => {
           </a-card>
 
           <!-- 号码分布图表区域 -->
-          <a-row :gutter="16" style="margin-bottom: 16px;">
+          <a-row :gutter="16" style="margin-bottom: 16px">
             <a-col :span="24">
               <a-card :loading="lottoStore.loading" class="chart-container">
                 <template #title>
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
                     <span>红球号码分布统计 (1-33)</span>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                      <a-select 
-                        v-model="lottoStore.sortParams.redBallSort" 
-                        style="width: 120px;"
+                    <div style="display: flex; align-items: center; gap: 8px">
+                      <a-select
+                        v-model="lottoStore.sortParams.redBallSort"
+                        style="width: 120px"
                         size="small"
                       >
                         <a-option value="number">按号码排序</a-option>
                         <a-option value="count">按次数排序</a-option>
                       </a-select>
-                      <a-button @click="lottoStore.loadData" type="dashed" size="small">重新加载</a-button>
+                      <a-button
+                        @click="lottoStore.loadData"
+                        type="dashed"
+                        size="small"
+                        >重新加载</a-button
+                      >
                     </div>
                   </div>
                 </template>
-                <VChart 
-                  :option="redBallOption" 
-                  style="height: 450px; width: 100%;" 
+                <VChart
+                  :option="redBallOption"
+                  style="height: 450px; width: 100%"
                   autoresize
                 />
               </a-card>
             </a-col>
           </a-row>
 
-          <a-row :gutter="16" style="margin-bottom: 16px;">
+          <a-row :gutter="16" style="margin-bottom: 16px">
             <a-col :span="24">
               <a-card :loading="lottoStore.loading" class="chart-container">
                 <template #title>
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: center;
+                    "
+                  >
                     <span>蓝球号码分布统计 (1-16)</span>
-                    <a-select 
-                      v-model="lottoStore.sortParams.blueBallSort" 
-                      style="width: 120px;"
+                    <a-select
+                      v-model="lottoStore.sortParams.blueBallSort"
+                      style="width: 120px"
                       size="small"
                     >
                       <a-option value="number">按号码排序</a-option>
@@ -527,9 +624,9 @@ onMounted(() => {
                     </a-select>
                   </div>
                 </template>
-                <VChart 
-                  :option="blueBallOption" 
-                  style="height: 350px; width: 100%;" 
+                <VChart
+                  :option="blueBallOption"
+                  style="height: 350px; width: 100%"
                   autoresize
                 />
               </a-card>
@@ -539,10 +636,14 @@ onMounted(() => {
           <!-- 奖池趋势图 -->
           <a-row>
             <a-col :span="24">
-              <a-card title="奖池金额趋势" :loading="lottoStore.loading" class="chart-container">
-                <VChart 
-                  :option="trendOption" 
-                  style="height: 400px; width: 100%;" 
+              <a-card
+                title="奖池金额趋势"
+                :loading="lottoStore.loading"
+                class="chart-container"
+              >
+                <VChart
+                  :option="trendOption"
+                  style="height: 400px; width: 100%"
                   autoresize
                 />
               </a-card>
@@ -553,3 +654,116 @@ onMounted(() => {
     </a-layout>
   </div>
 </template>
+
+<style scoped>
+.layout {
+  min-height: 100vh;
+}
+
+.header {
+  background: #001529;
+  color: white;
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 64px;
+}
+
+.content {
+  padding: 24px;
+  background: #f0f2f5;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.search-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.number-display {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.red-ball {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: linear-gradient(135deg, #ff4d4f, #ff7875);
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(255, 77, 79, 0.3);
+}
+
+.blue-ball {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: linear-gradient(135deg, #1890ff, #40a9ff);
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(24, 144, 255, 0.3);
+}
+
+.sequence-ball {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  background: linear-gradient(135deg, #52c41a, #73d13d);
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(82, 196, 26, 0.3);
+  position: relative;
+}
+
+.sequence-ball:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  z-index: 1000;
+}
+
+.no-sequence {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+
+.no-data {
+  color: #999;
+  font-size: 12px;
+}
+</style>

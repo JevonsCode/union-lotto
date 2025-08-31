@@ -346,10 +346,11 @@ export const useLottoStore = defineStore('lotto', () => {
   }
 
   /**
-   * 生成预测号码（避免与筛选数据重复）
+   * 生成预测号码（支持不同生成规则）
+   * @param {String} rule - 生成规则：'random' 或 'probability'
    * @returns {Object} 预测结果
    */
-  const generatePrediction = () => {
+  const generatePrediction = (rule = 'random') => {
     const dataToUse = filteredData.value.length > 0 ? filteredData.value : data.value
     
     // 获取已有的号码组合
@@ -359,38 +360,43 @@ export const useLottoStore = defineStore('lotto', () => {
       existingCombinations.add(combination)
     })
 
-    // 生成新的号码组合，确保不重复
-    let attempts = 0
-    const maxAttempts = 1000
+        let redBalls = []
+    let blueBall = 0
+    let generationNotes = []
 
-    while (attempts < maxAttempts) {
-      // 生成6个红球号码（1-33）
-      const redBalls = []
-      while (redBalls.length < 6) {
-        const num = Math.floor(Math.random() * 33) + 1
-        if (!redBalls.includes(num)) {
-          redBalls.push(num)
-        }
-      }
-      redBalls.sort((a, b) => a - b)
-
-      // 生成1个蓝球号码（1-16）
-      const blueBall = Math.floor(Math.random() * 16) + 1
-
-      const combination = redBalls.map(n => n.toString().padStart(2, '0')).join(' ') + '|' + blueBall.toString().padStart(2, '0')
-
-      if (!existingCombinations.has(combination)) {
-        return {
-          frontWinningNum: redBalls.map(n => n.toString().padStart(2, '0')).join(' '),
-          backWinningNum: blueBall.toString().padStart(2, '0'),
-          isNew: true
-        }
-      }
-
-      attempts++
+    if (rule === 'probability') {
+      // 基于概率生成
+      redBalls = generateProbabilityBasedRedBalls(dataToUse)
+      blueBall = generateProbabilityBasedBlueBall(dataToUse)
+    } else if (rule === 'sequence') {
+      // 序列概率生成
+      const sequenceResult = generateSequenceBasedRedBalls(dataToUse)
+      redBalls = sequenceResult.balls
+      generationNotes = sequenceResult.notes
+      blueBall = generateRandomBlueBall()
+    } else {
+      // 随机生成
+      redBalls = generateRandomRedBalls()
+      blueBall = generateRandomBlueBall()
     }
 
-    // 如果尝试太多次都重复，返回随机组合但标记为可能重复
+    const combination = redBalls.map(n => n.toString().padStart(2, '0')).join(' ') + '|' + blueBall.toString().padStart(2, '0')
+    const isHistorical = existingCombinations.has(combination)
+
+    return {
+      frontWinningNum: redBalls.map(n => n.toString().padStart(2, '0')).join(' '),
+      backWinningNum: blueBall.toString().padStart(2, '0'),
+      isHistorical,
+      rule,
+      generationNotes
+    }
+  }
+
+  /**
+   * 随机生成红球号码
+   * @returns {Array} 红球号码数组
+   */
+  const generateRandomRedBalls = () => {
     const redBalls = []
     while (redBalls.length < 6) {
       const num = Math.floor(Math.random() * 33) + 1
@@ -398,13 +404,234 @@ export const useLottoStore = defineStore('lotto', () => {
         redBalls.push(num)
       }
     }
-    redBalls.sort((a, b) => a - b)
-    const blueBall = Math.floor(Math.random() * 16) + 1
+    return redBalls.sort((a, b) => a - b)
+  }
 
+  /**
+   * 随机生成蓝球号码
+   * @returns {Number} 蓝球号码
+   */
+  const generateRandomBlueBall = () => {
+    return Math.floor(Math.random() * 16) + 1
+  }
+
+  /**
+   * 基于概率生成红球号码
+   * @param {Array} dataToUse - 用于分析的数据
+   * @returns {Array} 红球号码数组
+   */
+  const generateProbabilityBasedRedBalls = (dataToUse) => {
+    const redBallStats = getRedBallStats(dataToUse)
+    const sortedStats = redBallStats.sort((a, b) => b.count - a.count)
+    
+    // 取前15个最常出现的号码作为候选
+    const candidates = sortedStats.slice(0, 15).map(item => item.number)
+    
+    const redBalls = []
+    while (redBalls.length < 6) {
+      // 根据概率权重选择号码
+      const weights = candidates.map(num => {
+        const stat = sortedStats.find(s => s.number === num)
+        return stat ? stat.count : 1
+      })
+      
+      const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+      let random = Math.random() * totalWeight
+      
+      for (let i = 0; i < candidates.length; i++) {
+        random -= weights[i]
+        if (random <= 0 && !redBalls.includes(candidates[i])) {
+          redBalls.push(candidates[i])
+          break
+        }
+      }
+      
+      // 如果权重选择失败，随机选择
+      if (redBalls.length < 6) {
+        const available = candidates.filter(num => !redBalls.includes(num))
+        if (available.length > 0) {
+          const randomIndex = Math.floor(Math.random() * available.length)
+          redBalls.push(available[randomIndex])
+        }
+      }
+    }
+    
+    return redBalls.sort((a, b) => a - b)
+  }
+
+  /**
+   * 基于概率生成蓝球号码
+   * @param {Array} dataToUse - 用于分析的数据
+   * @returns {Number} 蓝球号码
+   */
+  const generateProbabilityBasedBlueBall = (dataToUse) => {
+    const blueBallStats = getBlueBallStats(dataToUse)
+    const sortedStats = blueBallStats.sort((a, b) => b.count - a.count)
+    
+    // 取前8个最常出现的蓝球作为候选
+    const candidates = sortedStats.slice(0, 8).map(item => item.number)
+    
+    // 根据概率权重选择号码
+    const weights = candidates.map(num => {
+      const stat = sortedStats.find(s => s.number === num)
+      return stat ? stat.count : 1
+    })
+    
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0)
+    let random = Math.random() * totalWeight
+    
+    for (let i = 0; i < candidates.length; i++) {
+      random -= weights[i]
+      if (random <= 0) {
+        return candidates[i]
+      }
+    }
+    
+    // 如果权重选择失败，返回第一个候选
+    return candidates[0] || 1
+  }
+
+  /**
+   * 基于序列概率生成红球号码
+   * @param {Array} dataToUse - 用于分析的数据
+   * @returns {Object} 包含红球数组和生成说明
+   */
+  const generateSequenceBasedRedBalls = (dataToUse) => {
+    const redBalls = []
+    const generationNotes = []
+    
+    // 随机生成第一个红球
+    const firstBall = Math.floor(Math.random() * 33) + 1
+    redBalls.push(firstBall)
+    generationNotes.push(`第1位：${firstBall.toString().padStart(2, '0')}（随机生成）`)
+    
+    // 根据第一个红球一次性生成后续所有红球
+    const remainingBalls = getRemainingBallsByFirstBall(dataToUse, firstBall)
+    
+    for (let i = 0; i < remainingBalls.length; i++) {
+      const ball = remainingBalls[i]
+      redBalls.push(ball.number)
+      generationNotes.push(`第${i + 2}位：${ball.number.toString().padStart(2, '0')}（${ball.note}）`)
+    }
+    
     return {
-      frontWinningNum: redBalls.map(n => n.toString().padStart(2, '0')).join(' '),
-      backWinningNum: blueBall.toString().padStart(2, '0'),
-      isNew: false
+      balls: redBalls.sort((a, b) => a - b),
+      notes: generationNotes
+    }
+  }
+
+  /**
+   * 根据第一个红球一次性生成所有后续红球
+   * @param {Array} dataToUse - 用于分析的数据
+   * @param {Number} firstBall - 第一个红球号码
+   * @returns {Array} 包含号码和说明的数组
+   */
+  const getRemainingBallsByFirstBall = (dataToUse, firstBall) => {
+    const remainingBalls = []
+    const usedBalls = [firstBall]
+    
+    // 分析第一个红球在历史开奖顺序中的后续号码
+    const sequenceAnalysis = analyzeFirstBallSequence(dataToUse, firstBall)
+    
+    // 根据概率排序选择后续5个红球
+    for (let i = 0; i < 5; i++) {
+      const selectedBall = selectNextBallFromSequence(sequenceAnalysis, usedBalls, i + 1)
+      remainingBalls.push(selectedBall)
+      usedBalls.push(selectedBall.number)
+    }
+    
+    return remainingBalls
+  }
+
+  /**
+   * 分析第一个红球在历史开奖顺序中的后续号码
+   * @param {Array} dataToUse - 用于分析的数据
+   * @param {Number} firstBall - 第一个红球号码
+   * @returns {Array} 概率分析结果
+   */
+  const analyzeFirstBallSequence = (dataToUse, firstBall) => {
+    const sequenceStats = {}
+    
+    // 初始化1-33的统计
+    for (let i = 1; i <= 33; i++) {
+      sequenceStats[i] = 0
+    }
+    
+    // 统计第一个红球后面出现的所有号码
+    dataToUse.forEach(item => {
+      if (item.seqFrontWinningNum) {
+        const sequenceNumbers = item.seqFrontWinningNum.split(' ')
+        
+        // 找到第一个红球在序列中的位置
+        const firstBallIndex = sequenceNumbers.findIndex(num => parseInt(num) === firstBall)
+        
+        // 如果找到了第一个红球，统计其后的所有号码
+        if (firstBallIndex !== -1) {
+          for (let i = firstBallIndex + 1; i < sequenceNumbers.length; i++) {
+            const nextNumber = parseInt(sequenceNumbers[i])
+            if (nextNumber >= 1 && nextNumber <= 33) {
+              sequenceStats[nextNumber]++
+            }
+          }
+        }
+      }
+    })
+    
+    // 转换为数组并排序
+    return Object.entries(sequenceStats)
+      .map(([number, count]) => ({
+        number: parseInt(number),
+        count,
+        percentage: ((count / dataToUse.length) * 100).toFixed(2)
+      }))
+      .sort((a, b) => b.count - a.count)
+  }
+
+  /**
+   * 从序列分析结果中选择下一个红球
+   * @param {Array} sequenceAnalysis - 序列分析结果
+   * @param {Array} usedBalls - 已使用的红球
+   * @param {Number} position - 当前位置
+   * @returns {Object} 包含号码和说明
+   */
+  const selectNextBallFromSequence = (sequenceAnalysis, usedBalls, position) => {
+    // 找到第一个不在已使用红球中的号码
+    for (let i = 0; i < sequenceAnalysis.length; i++) {
+      const candidate = sequenceAnalysis[i]
+      if (!usedBalls.includes(candidate.number)) {
+        let note = ''
+        if (i === 0) {
+          note = `最大概率(${candidate.percentage}%)`
+        } else {
+          note = `第${i + 1}概率(${candidate.percentage}%)`
+        }
+        return {
+          number: candidate.number,
+          note: note
+        }
+      }
+    }
+    
+    // 如果所有候选都已存在，随机选择一个未使用的号码
+    const availableNumbers = []
+    for (let i = 1; i <= 33; i++) {
+      if (!usedBalls.includes(i)) {
+        availableNumbers.push(i)
+      }
+    }
+    
+    if (availableNumbers.length > 0) {
+      const randomIndex = Math.floor(Math.random() * availableNumbers.length)
+      return {
+        number: availableNumbers[randomIndex],
+        note: '随机选择（无可用概率数据）'
+      }
+    } else {
+      // 极端情况：所有号码都已使用
+      return {
+        number: 1,
+        note: '强制选择（所有号码已使用）'
+      }
     }
   }
 

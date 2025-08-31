@@ -1,12 +1,31 @@
 <template>
   <a-card title="号码预测生成" class="prediction-card">
     <template #extra>
+      <a-select
+        v-model="generationRule"
+        style="width: 140px; margin-right: 8px"
+        size="small"
+      >
+        <a-option value="random">随机生成</a-option>
+        <a-option value="probability">概率生成</a-option>
+        <a-option value="sequence">序列概率生成</a-option>
+      </a-select>
       <a-button type="primary" @click="generateNewPrediction" :loading="generating">
         生成
       </a-button>
     </template>
     
     <div v-if="prediction" class="prediction-content">
+      <div class="prediction-info">
+        <div class="rule-info">
+          <a-tag :color="getRuleColor(generationRule)">
+            {{ getRuleLabel(generationRule) }}
+          </a-tag>
+          <a-tag v-if="prediction.isHistorical" color="red">历史号码</a-tag>
+          <a-tag v-else color="green">新号码</a-tag>
+        </div>
+      </div>
+      
       <div class="number-display">
         <div class="red-balls">
           <span 
@@ -20,6 +39,27 @@
         
         <div class="blue-balls">
           <span class="blue-ball">{{ prediction.backWinningNum }}</span>
+        </div>
+      </div>
+      
+      <div v-if="prediction.isHistorical" class="historical-warning">
+        <a-alert
+          message="注意：此号码组合在历史开奖中出现过"
+          type="warning"
+          show-icon
+        />
+      </div>
+      
+      <div v-if="prediction.generationNotes && prediction.generationNotes.length > 0" class="generation-notes">
+        <a-divider>生成说明</a-divider>
+        <div class="notes-list">
+          <div 
+            v-for="(note, index) in prediction.generationNotes" 
+            :key="index"
+            class="note-item"
+          >
+            <span class="note-text">{{ note }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -47,6 +87,12 @@
             <span class="blue-ball small">{{ item.backWinningNum }}</span>
           </div>
           <div class="history-meta">
+            <div class="history-tags">
+              <a-tag size="small" :color="getRuleColor(item.rule)">
+                {{ getRuleLabel(item.rule) }}
+              </a-tag>
+              <a-tag v-if="item.isHistorical" size="small" color="red">历史</a-tag>
+            </div>
             <span class="time">{{ item.time }}</span>
           </div>
         </div>
@@ -72,6 +118,7 @@ const lottoStore = useLottoStore()
 const prediction = ref(null)
 const generating = ref(false)
 const predictionHistory = ref([])
+const generationRule = ref('random')
 
 const generateNewPrediction = async () => {
   try {
@@ -80,12 +127,13 @@ const generateNewPrediction = async () => {
     // 模拟生成时间
     await new Promise(resolve => setTimeout(resolve, 500))
     
-    const newPrediction = lottoStore.generatePrediction()
+    const newPrediction = lottoStore.generatePrediction(generationRule.value)
     prediction.value = newPrediction
     
     // 添加到历史记录
     const historyItem = {
       ...newPrediction,
+      rule: generationRule.value,
       time: new Date().toLocaleString('zh-CN')
     }
     
@@ -105,6 +153,24 @@ const generateNewPrediction = async () => {
 
 const clearHistory = () => {
   predictionHistory.value = []
+}
+
+const getRuleColor = (rule) => {
+  switch (rule) {
+    case 'random': return 'blue'
+    case 'probability': return 'green'
+    case 'sequence': return 'purple'
+    default: return 'blue'
+  }
+}
+
+const getRuleLabel = (rule) => {
+  switch (rule) {
+    case 'random': return '随机生成'
+    case 'probability': return '概率生成'
+    case 'sequence': return '序列概率生成'
+    default: return '随机生成'
+  }
 }
 </script>
 
@@ -196,7 +262,40 @@ const clearHistory = () => {
 }
 
 .prediction-info {
-  margin-top: 20px;
+  margin-bottom: 16px;
+}
+
+.rule-info {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.historical-warning {
+  margin-top: 16px;
+}
+
+.generation-notes {
+  margin-top: 16px;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-item {
+  padding: 8px 12px;
+  background-color: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+}
+
+.note-text {
+  font-size: 12px;
+  color: #666;
+  font-family: 'Courier New', monospace;
 }
 
 .empty-state {
@@ -235,6 +334,12 @@ const clearHistory = () => {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
+}
+
+.history-tags {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
 }
 
 .time {
