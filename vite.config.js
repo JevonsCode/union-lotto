@@ -24,6 +24,7 @@ export default defineConfig({
       allow: ['..']
     }
   },
-  publicDir: '/',
+  
+    publicDir: 'public',
   assetsInclude: ['**/*.json']
 })
