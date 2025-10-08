@@ -1,5 +1,91 @@
 [
   {
+    "issue": "2025115",
+    "openTime": "2025-10-07",
+    "frontWinningNum": "02 03 08 19 24 30",
+    "backWinningNum": "02",
+    "seqFrontWinningNum": "30 03 02 24 19 08",
+    "seqBackWinningNum": "02",
+    "saleMoney": "330722178",
+    "r9SaleMoney": "",
+    "prizePoolMoney": "2797883669",
+    "week": "星期二",
+    "winnerDetails": [
+      {
+        "awardEtc": "1",
+        "baseBetWinner": {
+          "remark": "一等奖",
+          "awardNum": "39",
+          "awardMoney": "5465649",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "2",
+        "baseBetWinner": {
+          "remark": "二等奖",
+          "awardNum": "604",
+          "awardMoney": "37583",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "3",
+        "baseBetWinner": {
+          "remark": "三等奖",
+          "awardNum": "2006",
+          "awardMoney": "3000",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "4",
+        "baseBetWinner": {
+          "remark": "四等奖",
+          "awardNum": "91954",
+          "awardMoney": "200",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "5",
+        "baseBetWinner": {
+          "remark": "五等奖",
+          "awardNum": "1426754",
+          "awardMoney": "10",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "6",
+        "baseBetWinner": {
+          "remark": "六等奖",
+          "awardNum": "6515189",
+          "awardMoney": "5",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      }
+    ]
+  },
+  {
     "issue": "2025114",
     "openTime": "2025-10-05",
     "frontWinningNum": "01 20 21 25 26 27",
