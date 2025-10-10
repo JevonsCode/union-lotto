@@ -1,11 +1,11 @@
 permissions:
   contents: write
-name: 🤗 Update Lottery Data
+name: \ud83c\udf15 Update Lottery Data
 
 on:
   schedule:
-    # 每天集数据更新数据
-    - cron: '0 2 * * *'
+    # \u6bcf\u5468\u4e8c\u56db\u65e5\u665a\u4e0a9\u70b9\u534a (Asia/Singapore\uff0cUTC+8\uff0c21:30)\uff0c\u5bf9\u5e94\u5173\u8c03\u4e3b\u673a\u65f6\u533a\u65f6\u95f4 13:30 UTC
+    - cron: '30 13 * * 2,4,7'
   workflow_dispatch: # 允许手动启动
   push:
     branches: [ master, main ]
@@ -17,33 +17,33 @@ jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
-      - name: 🦌 Checkout
+      - name: \ud83d\uddc3\ufe0f Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # 获取完整的 git 历史
 
-      - name: 🍎 Setup Node.js
+      - name: \ud83e\uddf3 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: 🥳 Setup pnpm
+      - name: \ud83e\ude91 Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: 🎬 Install dependencies
+      - name: \ud83c\udf6b Install dependencies
         run: pnpm install
 
-      - name: 🐝 Update lottery data
+      - name: \ud83c\udf90 Update lottery data
         run: pnpm crawl
 
-      - name: 🎱 Copy data to public directory
+      - name: \ud83d\udeec Copy data to public directory
         run: |
           mkdir -p public/data
           cp data/lotto-data.json public/data/lotto-data.json
 
-      - name: 🔍 Check data changes
+      - name: \ud83d\udd0d Check data changes
         run: |
           echo "检查数据文件变化..."
           if git diff --quiet data/lotto-data.json; then
@@ -53,7 +53,7 @@ jobs:
             git diff --stat data/lotto-data.json
           fi
 
-      - name: 🍍 Commit and push changes
+      - name: \ud83c\udf40 Commit and push changes
         if: success()
         run: |
           git config --local user.email "action@github.com"
@@ -62,14 +62,14 @@ jobs:
           if git diff --cached --quiet; then
             echo "没有新的数据需要提交"
           else
-            git commit -m "🧺 Auto update lottery data"
+            git commit -m "\ud83c\udf90 Auto update lottery data"
             git pull --rebase
             git push
           fi
 
-      - name: 📪 Create summary
+      - name: \ud83c\udf4d Create summary
         run: |
-          echo "## 👍 数据更新内容" >> $GITHUB_STEP_SUMMARY
+          echo "##  数据更新内容" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "**更新时间**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**数据文件**: data/lotto-data.json" >> $GITHUB_STEP_SUMMARY
