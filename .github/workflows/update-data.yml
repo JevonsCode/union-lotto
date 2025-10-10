@@ -5,7 +5,7 @@ name: \ud83c\udf15 Update Lottery Data
 on:
   schedule:
     # \u6bcf\u5468\u4e8c\u56db\u65e5\u665a\u4e0a9\u70b9\u534a (Asia/Singapore\uff0cUTC+8\uff0c21:30)\uff0c\u5bf9\u5e94\u5173\u8c03\u4e3b\u673a\u65f6\u533a\u65f6\u95f4 13:30 UTC
-    - cron: '30 13 * * 2,4,7'
+    - cron: '30 13 * * 0,2,4'
   workflow_dispatch: # 允许手动启动
   push:
     branches: [ master, main ]
