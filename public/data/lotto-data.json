@@ -1,16 +1,102 @@
 [
   {
+    "issue": "2025127",
+    "openTime": "2025-11-04",
+    "frontWinningNum": "03 09 15 17 19 28",
+    "backWinningNum": "03",
+    "seqFrontWinningNum": "19 03 28 17 15 09",
+    "seqBackWinningNum": "03",
+    "saleMoney": "",
+    "r9SaleMoney": "",
+    "prizePoolMoney": "",
+    "week": "星期二",
+    "winnerDetails": []
+  },
+  {
     "issue": "2025126",
     "openTime": "2025-11-02",
     "frontWinningNum": "02 12 13 16 19 25",
     "backWinningNum": "10",
     "seqFrontWinningNum": "16 02 19 12 13 25",
     "seqBackWinningNum": "10",
-    "saleMoney": "",
+    "saleMoney": "399441700",
     "r9SaleMoney": "",
-    "prizePoolMoney": "",
+    "prizePoolMoney": "2846957929",
     "week": "星期日",
-    "winnerDetails": []
+    "winnerDetails": [
+      {
+        "awardEtc": "1",
+        "baseBetWinner": {
+          "remark": "一等奖",
+          "awardNum": "7",
+          "awardMoney": "8140985",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "2",
+        "baseBetWinner": {
+          "remark": "二等奖",
+          "awardNum": "100",
+          "awardMoney": "274836",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "3",
+        "baseBetWinner": {
+          "remark": "三等奖",
+          "awardNum": "1242",
+          "awardMoney": "3000",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "4",
+        "baseBetWinner": {
+          "remark": "四等奖",
+          "awardNum": "62443",
+          "awardMoney": "200",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "5",
+        "baseBetWinner": {
+          "remark": "五等奖",
+          "awardNum": "1241700",
+          "awardMoney": "10",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      },
+      {
+        "awardEtc": "6",
+        "baseBetWinner": {
+          "remark": "六等奖",
+          "awardNum": "11432069",
+          "awardMoney": "5",
+          "totalMoney": ""
+        },
+        "addToBetWinner": "",
+        "addToBetWinner2": "",
+        "addToBetWinner3": ""
+      }
+    ]
   },
   {
     "issue": "2025125",
