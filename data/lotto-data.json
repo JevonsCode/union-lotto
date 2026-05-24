@@ -1,5 +1,18 @@
 [
   {
+    "issue": "2026058",
+    "openTime": "2026-05-24",
+    "frontWinningNum": "01 04 07 21 29 30",
+    "backWinningNum": "01",
+    "seqFrontWinningNum": "29 01 21 04 07 30",
+    "seqBackWinningNum": "01",
+    "saleMoney": "",
+    "r9SaleMoney": "",
+    "prizePoolMoney": "",
+    "week": "星期日",
+    "winnerDetails": []
+  },
+  {
     "issue": "2026057",
     "openTime": "2026-05-21",
     "frontWinningNum": "01 10 22 24 28 30",
