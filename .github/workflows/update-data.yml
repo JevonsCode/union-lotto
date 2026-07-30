@@ -1,11 +1,12 @@
 permissions:
   contents: write
+
 name: \ud83c\udf15 Update Lottery Data
 
 on:
   schedule:
-    # \u6bcf\u5468\u4e8c\u56db\u65e5\u665a\u4e0a9\u70b9\u534a (Asia/Singapore\uff0cUTC+8\uff0c21:30)\uff0c\u5bf9\u5e94\u5173\u8c03\u4e3b\u673a\u65f6\u533a\u65f6\u95f4 13:30 UTC
-    - cron: '30 13 * * 0,2,4'
+    # GitHub Actions 使用 UTC：14:00 UTC = 北京时间 22:00
+    - cron: '0 14 * * *'
   workflow_dispatch: # 允许手动启动
   push:
     branches: [ master, main ]
@@ -16,6 +17,7 @@ on:
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: \ud83d\uddc3\ufe0f Checkout
         uses: actions/checkout@v4
@@ -36,7 +38,25 @@ jobs:
         run: pnpm install
 
       - name: \ud83c\udf90 Update lottery data
-        run: pnpm crawl
+        shell: bash
+        run: |
+          max_attempts=4
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "第 $attempt/$max_attempts 次抓取数据..."
+            if pnpm crawl; then
+              echo "数据抓取成功"
+              exit 0
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "::error::数据抓取失败，已重试 $max_attempts 次"
+              exit 1
+            fi
+
+            wait_seconds=$((attempt * 30))
+            echo "请求失败，$wait_seconds 秒后重试..."
+            sleep "$wait_seconds"
+          done
 
       - name: \ud83d\udeec Copy data to public directory
         run: |
@@ -69,7 +89,7 @@ jobs:
 
       - name: \ud83c\udf4d Create summary
         run: |
-          echo "##  数据更新内容" >> $GITHUB_STEP_SUMMARY
+          echo "## 数据更新内容" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "**更新时间**: $(date)" >> $GITHUB_STEP_SUMMARY
           echo "**数据文件**: data/lotto-data.json" >> $GITHUB_STEP_SUMMARY
