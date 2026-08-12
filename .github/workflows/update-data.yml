@@ -1,4 +1,5 @@
 permissions:
+  actions: write
   contents: write
 
 name: \ud83c\udf15 Update Lottery Data
@@ -13,6 +14,10 @@ on:
     paths:
       - 'data/get-numbers.js'
       - 'package.json'
+
+concurrency:
+  group: update-lottery-data-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   update-data:
@@ -64,28 +69,82 @@ jobs:
           cp data/lotto-data.json public/data/lotto-data.json
 
       - name: \ud83d\udd0d Check data changes
+        id: data_changes
+        shell: bash
         run: |
           echo "检查数据文件变化..."
-          if git diff --quiet data/lotto-data.json; then
+          if git diff --quiet -- data/lotto-data.json public/data/lotto-data.json; then
             echo "数据没有变化"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "数据有更新"
-            git diff --stat data/lotto-data.json
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- data/lotto-data.json public/data/lotto-data.json
           fi
 
       - name: \ud83c\udf40 Commit and push changes
-        if: success()
+        id: commit_changes
+        if: steps.data_changes.outputs.changed == 'true'
+        shell: bash
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add data/lotto-data.json public/data/lotto-data.json
-          if git diff --cached --quiet; then
-            echo "没有新的数据需要提交"
+          git commit -m "\ud83c\udf90 Auto update lottery data"
+          git pull --rebase
+
+          local_sha=$(git rev-parse HEAD)
+          remote_sha=$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)
+          if [ "$local_sha" = "$remote_sha" ]; then
+            echo "相同数据已由另一个运行推送，无需再次推送"
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "\ud83c\udf90 Auto update lottery data"
-            git pull --rebase
-            git push
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+            pushed_sha=$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)
+            if [ "$pushed_sha" != "$local_sha" ]; then
+              echo "::error::远端分支未更新到预期提交 ${local_sha}"
+              exit 1
+            fi
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: \ud83d\udd0e Check Pages deployment
+        id: deployment_status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          target_sha=$(git ls-remote origin "refs/heads/${GITHUB_REF_NAME}" | cut -f1)
+          if [ -z "$target_sha" ]; then
+            echo "::error::无法解析远端分支 ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+          healthy_runs=$(gh api --method GET \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs" \
+            -f "head_sha=${target_sha}" \
+            -f "branch=${GITHUB_REF_NAME}" \
+            -f per_page=20 \
+            --jq '[.workflow_runs[] | select((.event == "push" or .event == "workflow_dispatch") and (.status != "completed" or .conclusion == "success"))] | length')
+
+          if [ "$healthy_runs" -gt 0 ]; then
+            echo "提交 ${target_sha} 已有成功或进行中的 Pages 部署"
+            echo "required=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "提交 ${target_sha} 尚无有效 Pages 部署"
+            echo "required=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: \ud83d\ude80 Deploy updated data
+        if: steps.deployment_status.outputs.required == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/dispatches" \
+            -f "ref=${GITHUB_REF_NAME}"
 
       - name: \ud83c\udf4d Create summary
         run: |
