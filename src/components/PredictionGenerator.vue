@@ -10,19 +10,56 @@
         <a-option value="probability">概率生成</a-option>
         <a-option value="sequence">序列概率生成</a-option>
       </a-select>
-      <a-button type="primary" @click="generateNewPrediction" :loading="generating">
+      <a-input-number
+        v-if="generationRule === 'sequence'"
+        v-model="sequenceStartNumber"
+        :min="1"
+        :max="33"
+        size="small"
+        style="width: 78px; margin-right: 8px"
+        placeholder="起点"
+      />
+      <a-select
+        v-if="generationRule === 'sequence'"
+        v-model="sequenceMode"
+        size="small"
+        style="width: 112px; margin-right: 8px"
+      >
+        <a-option value="classic">经典相邻</a-option>
+        <a-option value="recent">近期加权</a-option>
+        <a-option value="second-order">二阶链</a-option>
+      </a-select>
+      <a-select
+        v-if="generationRule === 'sequence'"
+        v-model="sequenceWindow"
+        size="small"
+        style="width: 112px; margin-right: 8px"
+      >
+        <a-option value="all">全部历史</a-option>
+        <a-option value="50">最近50期</a-option>
+        <a-option value="100">最近100期</a-option>
+      </a-select>
+      <a-button
+        type="primary"
+        @click="generateNewPrediction"
+        :loading="generating || lottoStore.loading"
+        :disabled="!lottoStore.loaded"
+      >
         生成
       </a-button>
     </template>
     
+    <a-alert v-if="errorMessage" type="error" show-icon class="prediction-error">{{ errorMessage }}</a-alert>
+
     <div v-if="prediction" class="prediction-content">
       <div class="prediction-info">
         <div class="rule-info">
           <a-tag :color="getRuleColor(generationRule)">
             {{ getRuleLabel(generationRule) }}
           </a-tag>
-          <a-tag v-if="prediction.isHistorical" color="red">历史号码</a-tag>
-          <a-tag v-else color="green">新号码</a-tag>
+          <a-tag v-if="prediction.collision?.fullCombinationCollision" color="red">完整历史碰撞</a-tag>
+          <a-tag v-else-if="prediction.collision?.redBallCollision" color="orange">红球历史碰撞</a-tag>
+          <a-tag v-else color="green">未碰撞</a-tag>
         </div>
       </div>
       
@@ -42,13 +79,10 @@
         </div>
       </div>
       
-      <div v-if="prediction.isHistorical" class="historical-warning">
-        <a-alert
-          message="注意：此号码组合在历史开奖中出现过"
-          type="warning"
-          show-icon
-        />
-      </div>
+      <HistoricalCollisionStatus
+        v-if="prediction.collision"
+        :collision="prediction.collision"
+      />
       
       <div v-if="prediction.generationNotes && prediction.generationNotes.length > 0" class="generation-notes">
         <a-divider>生成说明</a-divider>
@@ -91,10 +125,16 @@
               <a-tag size="small" :color="getRuleColor(item.rule)">
                 {{ getRuleLabel(item.rule) }}
               </a-tag>
-              <a-tag v-if="item.isHistorical" size="small" color="red">历史</a-tag>
+              <a-tag v-if="item.collision?.fullCombinationCollision" size="small" color="red">完整碰撞</a-tag>
+              <a-tag v-else-if="item.collision?.redBallCollision" size="small" color="orange">红球碰撞</a-tag>
             </div>
             <span class="time">{{ item.time }}</span>
           </div>
+          <HistoricalCollisionStatus
+            v-if="item.collision"
+            :collision="item.collision"
+            compact
+          />
         </div>
       </div>
       <a-button 
@@ -112,6 +152,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useLottoStore } from '@/stores/lottoStore'
+import HistoricalCollisionStatus from '@/components/HistoricalCollisionStatus.vue'
 
 const lottoStore = useLottoStore()
 
@@ -119,15 +160,29 @@ const prediction = ref(null)
 const generating = ref(false)
 const predictionHistory = ref([])
 const generationRule = ref('random')
+const sequenceStartNumber = ref(5)
+const sequenceMode = ref('classic')
+const sequenceWindow = ref('all')
+const errorMessage = ref('')
 
 const generateNewPrediction = async () => {
   try {
     generating.value = true
+    errorMessage.value = ''
     
     // 模拟生成时间
     await new Promise(resolve => setTimeout(resolve, 500))
     
-    const newPrediction = lottoStore.generatePrediction(generationRule.value)
+    const newPrediction = lottoStore.generatePrediction(
+      generationRule.value,
+      generationRule.value === 'sequence'
+        ? {
+            startNumber: sequenceStartNumber.value,
+            mode: sequenceMode.value,
+            trainingWindow: sequenceWindow.value === 'all' ? null : Number(sequenceWindow.value)
+          }
+        : {}
+    )
     prediction.value = newPrediction
     
     // 添加到历史记录
@@ -146,6 +201,7 @@ const generateNewPrediction = async () => {
     
   } catch (error) {
     console.error('生成预测失败:', error)
+    errorMessage.value = error.message || '生成预测失败'
   } finally {
     generating.value = false
   }
@@ -181,6 +237,10 @@ const getRuleLabel = (rule) => {
 
 .prediction-content {
   text-align: center;
+}
+
+.prediction-error {
+  margin-bottom: 16px;
 }
 
 .prediction-header {
@@ -271,10 +331,6 @@ const getRuleLabel = (rule) => {
   justify-content: center;
 }
 
-.historical-warning {
-  margin-top: 16px;
-}
-
 .generation-notes {
   margin-top: 16px;
 }
@@ -314,7 +370,9 @@ const getRuleLabel = (rule) => {
 
 .history-item {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 10px;
   align-items: center;
   padding: 12px;
   border: 1px solid #f0f0f0;
@@ -346,4 +404,4 @@ const getRuleLabel = (rule) => {
   font-size: 12px;
   color: #999;
 }
-</style> 
+</style>

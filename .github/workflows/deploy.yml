@@ -61,13 +61,7 @@ jobs:
       continue-on-error: true
       
     - name: 🧪 Run tests (if available)
-      run: |
-        if [ -f "package.json" ] && grep -q '"test"' package.json; then
-          pnpm test || echo "No tests configured or tests failed"
-        else
-          echo "No tests configured"
-        fi
-      continue-on-error: true
+      run: pnpm test
       
     - name: 🏗️ Build project
       run: pnpm run build:prod
@@ -134,6 +128,9 @@ jobs:
     - name: 🕷️ Update lottery data
       run: pnpm crawl
       continue-on-error: true
+
+    - name: 🧪 Run tests
+      run: pnpm test
       
     - name: 🏗️ Build project (PR Preview)
       run: pnpm run build:prod
@@ -150,4 +147,4 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: '✅ 构建成功！PR预览将在合并后部署到 GitHub Pages。'
-          }) 
+          })

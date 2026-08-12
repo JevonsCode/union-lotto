@@ -1,10 +1,17 @@
 <template>
   <a-card title="位置分析预测" class="position-analysis-card">
     <template #extra>
-      <a-button type="primary" @click="startAnalysis" :loading="analyzing">
+      <a-button
+        type="primary"
+        @click="startAnalysis"
+        :loading="analyzing || lottoStore.loading"
+        :disabled="!lottoStore.loaded"
+      >
         开始分析
       </a-button>
     </template>
+
+    <a-alert v-if="errorMessage" type="error" show-icon style="margin-bottom: 16px;">{{ errorMessage }}</a-alert>
     
     <!-- 参数设置 -->
     <div class="analysis-params">
@@ -213,6 +220,14 @@
               <a-tag v-else>蓝×</a-tag>
             </a-space>
           </template>
+
+          <template #collision="{ record }">
+            <HistoricalCollisionStatus
+              v-if="record.prediction.collision"
+              :collision="record.prediction.collision"
+              compact
+            />
+          </template>
         </a-table>
       </a-card>
     </div>
@@ -231,10 +246,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useLottoStore } from '@/stores/lottoStore'
+import HistoricalCollisionStatus from '@/components/HistoricalCollisionStatus.vue'
 
 const lottoStore = useLottoStore()
 const analyzing = ref(false)
 const analysisResult = ref(null)
+const errorMessage = ref('')
 
 /**
  * 期数范围信息
@@ -296,6 +313,11 @@ const comparisonColumns = [
     width: 120
   },
   {
+    title: '历史碰撞',
+    slotName: 'collision',
+    width: 180
+  },
+  {
     title: '期号',
     dataIndex: 'actual.issue',
     width: 100,
@@ -309,6 +331,7 @@ const comparisonColumns = [
 const startAnalysis = async () => {
   try {
     analyzing.value = true
+    errorMessage.value = ''
     
     if (!lottoStore.analysisParams.trainingStartIssue || !lottoStore.analysisParams.trainingEndIssue) {
       throw new Error('请设置训练数据区间')
@@ -320,7 +343,7 @@ const startAnalysis = async () => {
     
   } catch (error) {
     console.error('分析失败:', error)
-    // 这里可以添加错误提示
+    errorMessage.value = error.message || '分析失败'
   } finally {
     analyzing.value = false
   }
@@ -361,4 +384,4 @@ const startAnalysis = async () => {
   text-align: center;
   padding: 60px 0;
 }
-</style> 
+</style>

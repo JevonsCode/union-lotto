@@ -16,6 +16,7 @@ import { useLottoStore } from "@/stores/lottoStore";
 import PredictionGenerator from "@/components/PredictionGenerator.vue";
 import HistoryQuery from "@/components/HistoryQuery.vue";
 import SequenceAnalysis from "@/components/SequenceAnalysis.vue";
+import PositionAnalysis from "@/components/PositionAnalysis.vue";
 
 use([
   CanvasRenderer,
@@ -422,6 +423,9 @@ onMounted(() => {
           
           <!-- 开奖顺序分析组件 -->
           <SequenceAnalysis />
+
+          <!-- 位置分析预测组件 -->
+          <PositionAnalysis />
 
           <!-- 搜索和筛选区域 -->
           <a-card

@@ -7,6 +7,14 @@ import {
   analyzeRedBallPositions,
   analyzeBlueBallFrequency 
 } from '@/utils/predictionUtils'
+import {
+  buildTransitionModel,
+  generateGreedyChain
+} from '@/utils/transitionAnalysis'
+import {
+  buildHistoricalCollisionIndex,
+  checkHistoricalCollision
+} from '@/utils/historicalCollision'
 
 export const useLottoStore = defineStore('lotto', () => {
   // 状态
@@ -14,6 +22,8 @@ export const useLottoStore = defineStore('lotto', () => {
   const loading = ref(false)
   const loaded = ref(false)
   const filteredData = ref([])
+  const hasActiveFilter = ref(false)
+  const collisionIndex = ref(null)
   
   // 搜索参数
   const searchParams = ref({
@@ -137,6 +147,7 @@ export const useLottoStore = defineStore('lotto', () => {
       
       // 按期数排序（最新的在前）
       data.value.sort((a, b) => parseInt(b.issue) - parseInt(a.issue))
+      collisionIndex.value = buildHistoricalCollisionIndex(data.value)
       
       // 更新筛选数据
       filteredData.value = data.value
@@ -164,6 +175,14 @@ export const useLottoStore = defineStore('lotto', () => {
    */
   const filterData = (filters = {}) => {
     let filtered = [...data.value]
+    const fullRange = getIssueRange()
+    const requestedStart = filters.startIssue ? parseInt(filters.startIssue) : null
+    const requestedEnd = filters.endIssue ? parseInt(filters.endIssue) : null
+    const hasIssueSubset = (
+      (Number.isInteger(requestedStart) && requestedStart > fullRange.min) ||
+      (Number.isInteger(requestedEnd) && requestedEnd < fullRange.max)
+    )
+    hasActiveFilter.value = hasIssueSubset || Boolean(filters.startDate || filters.endDate)
 
     // 期数区间筛选
     if (filters.startIssue || filters.endIssue) {
@@ -172,6 +191,14 @@ export const useLottoStore = defineStore('lotto', () => {
         const startIssue = filters.startIssue ? parseInt(filters.startIssue) : 0
         const endIssue = filters.endIssue ? parseInt(filters.endIssue) : Infinity
         return issue >= startIssue && issue <= endIssue
+      })
+    }
+
+    if (filters.startDate || filters.endDate) {
+      filtered = filtered.filter(item => {
+        const openTime = String(item.openTime || '')
+        return (!filters.startDate || openTime >= filters.startDate) &&
+          (!filters.endDate || openTime <= filters.endDate)
       })
     }
     
@@ -210,6 +237,7 @@ export const useLottoStore = defineStore('lotto', () => {
     setDefaultSearchParams()
     
     filteredData.value = data.value
+    hasActiveFilter.value = false
     pagination.value.total = filteredData.value.length
     pagination.value.current = 1
   }
@@ -347,20 +375,16 @@ export const useLottoStore = defineStore('lotto', () => {
 
   /**
    * 生成预测号码（支持不同生成规则）
-   * @param {String} rule - 生成规则：'random' 或 'probability'
+   * @param {String} rule - 生成规则：'random'、'probability' 或 'sequence'
    * @returns {Object} 预测结果
    */
-  const generatePrediction = (rule = 'random') => {
-    const dataToUse = filteredData.value.length > 0 ? filteredData.value : data.value
-    
-    // 获取已有的号码组合
-    const existingCombinations = new Set()
-    dataToUse.forEach(item => {
-      const combination = item.frontWinningNum + '|' + item.backWinningNum
-      existingCombinations.add(combination)
-    })
+  const generatePrediction = (rule = 'random', options = {}) => {
+    if (!loaded.value || !collisionIndex.value) {
+      throw new Error('历史开奖数据尚未加载完成，请稍后再生成')
+    }
+    const dataToUse = hasActiveFilter.value ? filteredData.value : data.value
 
-        let redBalls = []
+    let redBalls = []
     let blueBall = 0
     let generationNotes = []
 
@@ -369,10 +393,25 @@ export const useLottoStore = defineStore('lotto', () => {
       redBalls = generateProbabilityBasedRedBalls(dataToUse)
       blueBall = generateProbabilityBasedBlueBall(dataToUse)
     } else if (rule === 'sequence') {
-      // 序列概率生成
-      const sequenceResult = generateSequenceBasedRedBalls(dataToUse)
-      redBalls = sequenceResult.balls
-      generationNotes = sequenceResult.notes
+      if (dataToUse.length === 0) {
+        throw new Error('当前筛选范围没有可用于相邻推演的数据')
+      }
+      const model = buildTransitionModel(dataToUse, {
+        mode: options.mode || 'classic',
+        trainingWindow: options.trainingWindow ?? null
+      })
+      const startNumber = Number.isInteger(options.startNumber)
+        ? options.startNumber
+        : Math.floor(Math.random() * 33) + 1
+      const sequenceResult = generateGreedyChain(model, startNumber, {
+        mode: options.mode || 'classic'
+      })
+      redBalls = [...sequenceResult.sortedBalls]
+      generationNotes = sequenceResult.steps.map((step, index) => {
+        const probability = ((step.pathProbability ?? step.probability ?? 0) * 100).toFixed(2)
+        return `第${index + 2}位：${String(step.number).padStart(2, '0')}（${step.model || step.source || '相邻概率'}，${probability}%）`
+      })
+      generationNotes.unshift(`第1位：${String(startNumber).padStart(2, '0')}（${Number.isInteger(options.startNumber) ? '用户选择' : '随机起点'}）`)
       blueBall = generateRandomBlueBall()
     } else {
       // 随机生成
@@ -380,13 +419,16 @@ export const useLottoStore = defineStore('lotto', () => {
       blueBall = generateRandomBlueBall()
     }
 
-    const combination = redBalls.map(n => n.toString().padStart(2, '0')).join(' ') + '|' + blueBall.toString().padStart(2, '0')
-    const isHistorical = existingCombinations.has(combination)
+    const collision = checkHistoricalCollision(collisionIndex.value || data.value, {
+      redBalls,
+      blueBall
+    })
 
     return {
       frontWinningNum: redBalls.map(n => n.toString().padStart(2, '0')).join(' '),
       backWinningNum: blueBall.toString().padStart(2, '0'),
-      isHistorical,
+      isHistorical: collision.fullCombinationCollision,
+      collision,
       rule,
       generationNotes
     }
@@ -492,150 +534,6 @@ export const useLottoStore = defineStore('lotto', () => {
   }
 
   /**
-   * 基于序列概率生成红球号码
-   * @param {Array} dataToUse - 用于分析的数据
-   * @returns {Object} 包含红球数组和生成说明
-   */
-  const generateSequenceBasedRedBalls = (dataToUse) => {
-    const redBalls = []
-    const generationNotes = []
-    
-    // 随机生成第一个红球
-    const firstBall = Math.floor(Math.random() * 33) + 1
-    redBalls.push(firstBall)
-    generationNotes.push(`第1位：${firstBall.toString().padStart(2, '0')}（随机生成）`)
-    
-    // 根据第一个红球一次性生成后续所有红球
-    const remainingBalls = getRemainingBallsByFirstBall(dataToUse, firstBall)
-    
-    for (let i = 0; i < remainingBalls.length; i++) {
-      const ball = remainingBalls[i]
-      redBalls.push(ball.number)
-      generationNotes.push(`第${i + 2}位：${ball.number.toString().padStart(2, '0')}（${ball.note}）`)
-    }
-    
-    return {
-      balls: redBalls.sort((a, b) => a - b),
-      notes: generationNotes
-    }
-  }
-
-  /**
-   * 根据第一个红球一次性生成所有后续红球
-   * @param {Array} dataToUse - 用于分析的数据
-   * @param {Number} firstBall - 第一个红球号码
-   * @returns {Array} 包含号码和说明的数组
-   */
-  const getRemainingBallsByFirstBall = (dataToUse, firstBall) => {
-    const remainingBalls = []
-    const usedBalls = [firstBall]
-    
-    // 分析第一个红球在历史开奖顺序中的后续号码
-    const sequenceAnalysis = analyzeFirstBallSequence(dataToUse, firstBall)
-    
-    // 根据概率排序选择后续5个红球
-    for (let i = 0; i < 5; i++) {
-      const selectedBall = selectNextBallFromSequence(sequenceAnalysis, usedBalls, i + 1)
-      remainingBalls.push(selectedBall)
-      usedBalls.push(selectedBall.number)
-    }
-    
-    return remainingBalls
-  }
-
-  /**
-   * 分析第一个红球在历史开奖顺序中的后续号码
-   * @param {Array} dataToUse - 用于分析的数据
-   * @param {Number} firstBall - 第一个红球号码
-   * @returns {Array} 概率分析结果
-   */
-  const analyzeFirstBallSequence = (dataToUse, firstBall) => {
-    const sequenceStats = {}
-    
-    // 初始化1-33的统计
-    for (let i = 1; i <= 33; i++) {
-      sequenceStats[i] = 0
-    }
-    
-    // 统计第一个红球后面出现的所有号码
-    dataToUse.forEach(item => {
-      if (item.seqFrontWinningNum) {
-        const sequenceNumbers = item.seqFrontWinningNum.split(' ')
-        
-        // 找到第一个红球在序列中的位置
-        const firstBallIndex = sequenceNumbers.findIndex(num => parseInt(num) === firstBall)
-        
-        // 如果找到了第一个红球，统计其后的所有号码
-        if (firstBallIndex !== -1) {
-          for (let i = firstBallIndex + 1; i < sequenceNumbers.length; i++) {
-            const nextNumber = parseInt(sequenceNumbers[i])
-            if (nextNumber >= 1 && nextNumber <= 33) {
-              sequenceStats[nextNumber]++
-            }
-          }
-        }
-      }
-    })
-    
-    // 转换为数组并排序
-    return Object.entries(sequenceStats)
-      .map(([number, count]) => ({
-        number: parseInt(number),
-        count,
-        percentage: ((count / dataToUse.length) * 100).toFixed(2)
-      }))
-      .sort((a, b) => b.count - a.count)
-  }
-
-  /**
-   * 从序列分析结果中选择下一个红球
-   * @param {Array} sequenceAnalysis - 序列分析结果
-   * @param {Array} usedBalls - 已使用的红球
-   * @param {Number} position - 当前位置
-   * @returns {Object} 包含号码和说明
-   */
-  const selectNextBallFromSequence = (sequenceAnalysis, usedBalls, position) => {
-    // 找到第一个不在已使用红球中的号码
-    for (let i = 0; i < sequenceAnalysis.length; i++) {
-      const candidate = sequenceAnalysis[i]
-      if (!usedBalls.includes(candidate.number)) {
-        let note = ''
-        if (i === 0) {
-          note = `最大概率(${candidate.percentage}%)`
-        } else {
-          note = `第${i + 1}概率(${candidate.percentage}%)`
-        }
-        return {
-          number: candidate.number,
-          note: note
-        }
-      }
-    }
-    
-    // 如果所有候选都已存在，随机选择一个未使用的号码
-    const availableNumbers = []
-    for (let i = 1; i <= 33; i++) {
-      if (!usedBalls.includes(i)) {
-        availableNumbers.push(i)
-      }
-    }
-    
-    if (availableNumbers.length > 0) {
-      const randomIndex = Math.floor(Math.random() * availableNumbers.length)
-      return {
-        number: availableNumbers[randomIndex],
-        note: '随机选择（无可用概率数据）'
-      }
-    } else {
-      // 极端情况：所有号码都已使用
-      return {
-        number: 1,
-        note: '强制选择（所有号码已使用）'
-      }
-    }
-  }
-
-  /**
    * 根据期数区间获取训练数据
    * @param {String} startIssue - 开始期数
    * @param {String} endIssue - 结束期数
@@ -673,6 +571,9 @@ export const useLottoStore = defineStore('lotto', () => {
    * @returns {Object} 预测分析结果
    */
   const performPositionAnalysis = (params = {}) => {
+    if (!loaded.value || !collisionIndex.value) {
+      throw new Error('历史开奖数据尚未加载完成，请稍后再分析')
+    }
     const {
       trainingStartIssue = analysisParams.value.trainingStartIssue,
       trainingEndIssue = analysisParams.value.trainingEndIssue,
@@ -701,7 +602,12 @@ export const useLottoStore = defineStore('lotto', () => {
         useTopN: 3,
         randomFactor: dynamicRandomFactor
       })
-      predictions.push(prediction)
+      const redBalls = prediction.frontWinningNum.split(' ').map(Number)
+      const blueBall = Number(prediction.backWinningNum)
+      predictions.push({
+        ...prediction,
+        collision: checkHistoricalCollision(collisionIndex.value || data.value, { redBalls, blueBall })
+      })
     }
 
     // 验证预测准确性
@@ -738,6 +644,7 @@ export const useLottoStore = defineStore('lotto', () => {
     loading,
     loaded,
     filteredData,
+    hasActiveFilter,
     searchParams,
     sortParams,
     pagination,
@@ -746,6 +653,8 @@ export const useLottoStore = defineStore('lotto', () => {
     // 计算属性
     paginatedData,
     statistics,
+    transitionData: computed(() => hasActiveFilter.value ? filteredData.value : data.value),
+    collisionIndex,
     
     // 方法
     loadData,
@@ -766,4 +675,4 @@ export const useLottoStore = defineStore('lotto', () => {
     getIssueList,
     setDefaultSearchParams
   }
-}) 
+})
