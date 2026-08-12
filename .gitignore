@@ -39,3 +39,6 @@ coverage/
 # 缓存
 .cache/
 .eslintcache
+
+# Superpowers 设计辅助会话
+.superpowers/

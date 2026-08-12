@@ -1,0 +1,250 @@
+# Historical Adjacent-Number Transition Analysis Design
+
+## Goal
+
+Correct the current sequence-probability calculation and turn it into an
+interactive, explainable analysis tool. A user selects any red ball from 1 to
+33, sees which number immediately followed it in historical draw order, and can
+generate complete six-number chains by repeatedly applying the selected model.
+
+This feature is descriptive statistical analysis. Lottery draws are independent;
+the UI must not describe historical transition frequency as a future winning
+probability.
+
+## Existing defects
+
+The current implementation has two material errors:
+
+1. `SequenceAnalysis.vue` divides a transition count by every draw in the data
+   set. The correct first-order conditional probability is
+   `count(current → next) / count(current has an immediate successor)`.
+2. The store gathers every number after the selected first ball, then reuses
+   that single ranking for all five remaining choices. It neither limits the
+   statistic to the immediate neighbor nor recalculates after each new number,
+   so it cannot produce a true chain such as `05 → 32 → 18`.
+
+## Scope
+
+### Included
+
+- Red-ball draw-order sequences from `seqFrontWinningNum`.
+- Correct first-order adjacent transition probabilities.
+- A recent-draw weighted model.
+- A second-order model with explicit first-order backoff.
+- Greedy generation and beam-search alternatives from a user-selected start.
+- Historical evidence for each transition.
+- Leakage-free rolling historical backtesting.
+- Integration with the existing sequence prediction rule.
+- Responsive desktop and mobile presentation.
+
+### Excluded
+
+- Blue-ball transitions, because each draw contains only one blue ball.
+- Machine-learning claims or claims that a model predicts an independent draw.
+- Server-side storage or a new API; all calculations use the JSON already
+  loaded by the application.
+
+## Data preparation
+
+Create a pure JavaScript module at `src/utils/transitionAnalysis.js`. It accepts
+raw draw records and normalizes only records whose `seqFrontWinningNum` contains
+exactly six unique integers in the range 1–33. Invalid records are skipped and
+reported in model metadata.
+
+Each normalized draw has:
+
+```js
+{
+  issue: '2026092',
+  openTime: '2026-08-11',
+  sequence: [5, 32, 18, 7, 20, 11]
+}
+```
+
+Calculations retain full floating-point precision. Counts and percentages are
+rounded only when rendered.
+
+## Statistical models
+
+### First-order adjacent model
+
+For every valid sequence, record only the five immediate edges:
+
+```text
+n1 → n2, n2 → n3, n3 → n4, n4 → n5, n5 → n6
+```
+
+For a source number `a`:
+
+```text
+P(b | a) = count(a → b) / Σx count(a → x)
+```
+
+The denominator is therefore the number of historical sequences in which `a`
+has an immediate successor, not the total number of draws. Candidate ordering
+is deterministic: probability descending, raw count descending, then number
+ascending. The model retains the issue, date, and complete sequence for every
+observed edge so the UI can expose supporting records.
+
+### Recent-weighted model
+
+The newest draw has rank zero. A draw at recency rank `r` receives:
+
+```text
+weight(r) = 0.5 ** (r / 365)
+```
+
+This gives historical evidence a 365-draw half-life. Weighted conditional
+probabilities use weighted edge counts divided by total outgoing weight. The UI
+still shows raw counts alongside weighted percentages so the result remains
+auditable. The half-life is a named constant and is not exposed as a user
+setting in the first version.
+
+### Second-order model
+
+For every consecutive triple, collect `(a, b) → c`. After the first generated
+step, the model can estimate:
+
+```text
+P(c | a, b) = count(a, b → c) / Σx count(a, b → x)
+```
+
+A second-order context is used only when it has at least eight historical
+samples. Otherwise it explicitly backs off to the first-order distribution for
+the current number `b`. Each generated step records whether it used second
+order, first-order backoff, or a final global-frequency fallback.
+
+### Fallback
+
+Candidates already present in the partial six-number chain are removed. If the
+selected distribution has no unused candidate, rank the remaining numbers by
+their unconditional red-ball occurrence count, then number ascending. This
+guarantees six unique numbers while visibly labeling the fallback.
+
+## Chain generation
+
+The user chooses a start number and a model. Two generation methods are shown:
+
+1. **Greedy chain:** at each step, choose the highest-ranked unused candidate
+   from the newly calculated distribution for the current path.
+2. **Beam search:** retain the best eight partial paths at each step, expand each
+   with its eight strongest unused candidates, score a path by the sum of log
+   conditional probabilities, and return the top three distinct complete
+   chains. Fallback steps receive their displayed fallback probability and are
+   included in the same scoring rule.
+
+The UI preserves the generated draw-order chain for explanation and also shows
+a separately sorted copy suitable for reading as a conventional red-ball set.
+No generated blue ball is part of this analysis panel.
+
+## Historical backtest
+
+Backtesting uses rolling-origin evaluation to prevent future-data leakage:
+
+1. Sort valid records from oldest to newest.
+2. Require 200 earlier draws before scoring begins.
+3. Before scoring a target draw, build or update the model using only earlier
+   draws.
+4. For each of the target draw's five actual adjacent decisions, pass only the
+   preceding actual numbers as context and remove numbers already seen in that
+   target sequence.
+5. Record whether the actual next number appears in the model's Top 1, Top 3,
+   or Top 5 candidates.
+6. Add the target draw to training only after it has been scored.
+
+The recent-weighted backtest applies a per-draw decay equivalent to the
+365-draw half-life before adding the newly observed draw. Results report the
+number of evaluated transitions, Top 1/3/5 hit rates, and the corresponding
+uniform-choice baseline for the number of candidates available at each step.
+This evaluates historical ranking behavior, not future lottery predictability.
+
+## Module interface
+
+The pure module exposes focused functions:
+
+```js
+normalizeDrawSequences(records)
+buildTransitionModel(records, options)
+getNextNumberDistribution(model, path, options)
+generateGreedyChain(model, startNumber, options)
+generateBeamChains(model, startNumber, options)
+backtestTransitionModel(records, options)
+```
+
+The Pinia store supplies the active data range and delegates sequence generation
+to this module. The old duplicated sequence-analysis helpers are removed. The
+existing `generatePrediction('sequence')` path uses the corrected first-order
+model; it may accept an optional selected start number, while retaining a random
+start for existing callers that do not provide one.
+
+## User interface
+
+Replace the current `SequenceAnalysis.vue` implementation with an analysis panel
+that contains:
+
+- A 1–33 start-number picker.
+- Model tabs: classic adjacent, recent weighted, and second order.
+- The active range, valid-record count, skipped-record count, and outgoing
+  sample size for the selected number.
+- A ranked next-number view with raw count, correct conditional percentage, and
+  a proportional bar. All observed candidates remain available; the first ten
+  are shown initially.
+- An evidence drawer for a candidate, listing matching issue/date/sequence rows
+  and highlighting the selected adjacent pair.
+- A greedy six-number chain with per-step explanations.
+- Three beam-search alternatives with path scores.
+- A backtest section containing Top 1/3/5 rates, baseline rates, evaluated sample
+  size, and the independence disclaimer.
+
+The panel reacts to the application's existing issue-range filter. Changing the
+range rebuilds the model and clears results that no longer match that range.
+Empty or insufficient data produces an explanatory empty state instead of zero
+percentages that could be mistaken for measured probabilities.
+
+## Error handling and performance
+
+- Model functions never mutate input records.
+- Invalid sequences are counted and skipped rather than failing the page.
+- Start numbers must be integers from 1–33; invalid programmatic calls throw a
+  descriptive error.
+- A model is built once per active data range and selected mode, not once per
+  rendered number.
+- The full data set is small (about 3,500 draws and 17,500 first-order edges),
+  so calculations remain client-side. Backtesting runs on explicit user action
+  and displays a loading state.
+- Errors are shown in the component with an alert and logged with their cause.
+
+## Testing
+
+Add Node's built-in test runner and pure-module tests covering:
+
+- Sequence validation and non-mutation.
+- Immediate-neighbor counting (numbers farther to the right must not count).
+- The source-specific denominator and exact conditional probabilities.
+- Historical evidence references.
+- Recent weighting and deterministic tie-breaking.
+- Second-order selection, minimum-sample backoff, and global fallback.
+- Greedy recalculation after every selected number and six-number uniqueness.
+- Beam-search result count, uniqueness, and deterministic ordering.
+- Rolling backtest chronology, including a fixture that would pass only if a
+  future record leaked into training.
+
+Run unit tests, the production build, and a responsive browser smoke test. The
+smoke test must verify start-number selection, model switching, evidence
+expansion, chain generation, backtest output, and the existing data filter.
+
+## Acceptance criteria
+
+- For number 05 on the current full data set, the UI reports 521 outgoing
+  adjacent observations; 05 → 32 reports 25 observations and 4.80%.
+- Every displayed first-order candidate percentage uses its source number's
+  outgoing total and the candidate percentages sum to approximately 100%.
+- A generated chain recalculates from each newly selected number and contains
+  six unique red balls.
+- Every transition explanation identifies its model, sample count, probability,
+  and any backoff/fallback.
+- Evidence rows reproduce the source JSON's issue/date/draw-order sequence.
+- Backtest results are produced without using the target or later records for
+  training.
+- Existing random and frequency prediction modes continue to work.
+- The page builds without errors and remains usable on narrow screens.
