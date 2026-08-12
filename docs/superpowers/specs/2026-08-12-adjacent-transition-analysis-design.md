@@ -61,6 +61,15 @@ Each normalized draw has:
 }
 ```
 
+Chronology is canonical and independent of input-array order. `issue` must be a
+non-empty, unique, integer-like value and `openTime` must parse as a valid
+calendar date. Records missing either field, containing a duplicate issue, or
+containing an invalid date are skipped and counted by reason. Valid records are
+ordered oldest to newest by parsed `openTime`, then numeric issue ascending;
+recency order is the exact reverse. The current data set has unique issues and
+valid dates, but these rules make later updates deterministic and prevent an
+invalid chronology from entering a backtest.
+
 Calculations retain full floating-point precision. Counts and percentages are
 rounded only when rendered.
 
@@ -112,14 +121,27 @@ P(c | a, b) = count(a, b → c) / Σx count(a, b → x)
 A second-order context is used only when it has at least eight historical
 samples. Otherwise it explicitly backs off to the first-order distribution for
 the current number `b`. Each generated step records whether it used second
-order, first-order backoff, or a final global-frequency fallback.
+order, first-order backoff, or a final global-frequency fallback. Evidence for a
+second-order candidate contains only records that match the complete
+`(a, b) → c` context.
 
 ### Fallback
 
 Candidates already present in the partial six-number chain are removed. If the
 selected distribution has no unused candidate, rank the remaining numbers by
-their unconditional red-ball occurrence count, then number ascending. This
-guarantees six unique numbers while visibly labeling the fallback.
+their unconditional red-ball occurrence count, then number ascending. The
+fallback distribution assigns each remaining number its unconditional count
+divided by the sum of unconditional counts among the remaining numbers. If all
+such counts are zero, it uses a uniform distribution over the remaining
+numbers. This guarantees six unique numbers while visibly labeling the
+fallback.
+
+Whenever used numbers are removed from an observed or fallback distribution,
+the remaining candidate probabilities are renormalized to sum to one. The UI
+shows both the original historical conditional probability and the path-choice
+probability after exclusion; beam scoring uses only the latter. This prevents a
+path from being rewarded or penalized merely because more of its candidates
+were already used.
 
 ## Chain generation
 
@@ -129,9 +151,10 @@ The user chooses a start number and a model. Two generation methods are shown:
    from the newly calculated distribution for the current path.
 2. **Beam search:** retain the best eight partial paths at each step, expand each
    with its eight strongest unused candidates, score a path by the sum of log
-   conditional probabilities, and return the top three distinct complete
-   chains. Fallback steps receive their displayed fallback probability and are
-   included in the same scoring rule.
+path-choice probabilities, and return the top three distinct complete chains.
+Fallback steps use the defined fallback probability and are included in the
+same scoring rule. Ties are resolved by the complete draw-order chain compared
+lexicographically by numeric value, making results deterministic.
 
 The UI preserves the generated draw-order chain for explanation and also shows
 a separately sorted copy suitable for reading as a conventional red-ball set.
@@ -156,7 +179,10 @@ The recent-weighted backtest applies a per-draw decay equivalent to the
 365-draw half-life before adding the newly observed draw. Results report the
 number of evaluated transitions, Top 1/3/5 hit rates, and the corresponding
 uniform-choice baseline for the number of candidates available at each step.
-This evaluates historical ranking behavior, not future lottery predictability.
+For Top K, each evaluated decision contributes
+`min(K, availableCandidateCount) / availableCandidateCount`; the displayed
+baseline is the arithmetic mean across all evaluated decisions. This evaluates
+historical ranking behavior, not future lottery predictability.
 
 ## Module interface
 
@@ -171,11 +197,20 @@ generateBeamChains(model, startNumber, options)
 backtestTransitionModel(records, options)
 ```
 
-The Pinia store supplies the active data range and delegates sequence generation
-to this module. The old duplicated sequence-analysis helpers are removed. The
-existing `generatePrediction('sequence')` path uses the corrected first-order
-model; it may accept an optional selected start number, while retaining a random
-start for existing callers that do not provide one.
+The Pinia store exposes `hasActiveFilter` separately from `filteredData`. The
+analysis data source is `filteredData` whenever a filter is active, including
+when that array is empty; it uses the full `data` array only when no filter is
+active. This replaces the current ambiguous `filteredData.length > 0` fallback
+for transition analysis and sequence generation, so an empty filter result
+cannot silently analyze all history.
+
+The store delegates sequence generation to the pure module. The old duplicated
+sequence-analysis helpers are removed. The existing
+`generatePrediction('sequence')` path uses the corrected first-order model; it
+may accept an optional selected start number, while retaining a random start for
+existing callers that do not provide one. Existing unrelated charts retain
+their current data-source behavior unless explicitly routed through the new
+transition-data selector.
 
 ## User interface
 
@@ -224,10 +259,13 @@ Add Node's built-in test runner and pure-module tests covering:
 - Historical evidence references.
 - Recent weighting and deterministic tie-breaking.
 - Second-order selection, minimum-sample backoff, and global fallback.
+- Renormalization after used-number exclusion and exact fallback probabilities.
 - Greedy recalculation after every selected number and six-number uniqueness.
 - Beam-search result count, uniqueness, and deterministic ordering.
 - Rolling backtest chronology, including a fixture that would pass only if a
   future record leaked into training.
+- Unsorted input, duplicate/missing/invalid chronology handling, exact uniform
+  baseline aggregation, and an empty active filter that must remain empty.
 
 Run unit tests, the production build, and a responsive browser smoke test. The
 smoke test must verify start-number selection, model switching, evidence
