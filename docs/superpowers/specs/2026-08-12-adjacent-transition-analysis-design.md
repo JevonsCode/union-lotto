@@ -34,6 +34,9 @@ The current implementation has two material errors:
 - Greedy generation and beam-search alternatives from a user-selected start.
 - Historical evidence for each transition.
 - Leakage-free rolling historical backtesting.
+- A selectable recent-history training window, including 50, 100, and custom
+  draw counts.
+- A shared historical-collision service used by every generated number set.
 - Integration with the existing sequence prediction rule.
 - Responsive desktop and mobile presentation.
 
@@ -43,6 +46,9 @@ The current implementation has two material errors:
 - Machine-learning claims or claims that a model predicts an independent draw.
 - Server-side storage or a new API; all calculations use the JSON already
   loaded by the application.
+- A new blue-ball transition model. The adjacent-transition panel evaluates red
+  balls only; existing generators that already produce a blue ball still
+  receive full-combination collision checks.
 
 ## Data preparation
 
@@ -160,29 +166,112 @@ The UI preserves the generated draw-order chain for explanation and also shows
 a separately sorted copy suitable for reading as a conventional red-ball set.
 No generated blue ball is part of this analysis panel.
 
+## Training window
+
+Every interactive transition model receives a `trainingWindow` option. The UI
+offers All history, Latest 50, Latest 100, and Custom. Custom accepts an integer
+from 20 through the number of valid records in the active issue range. For an
+interactive model, “latest” means the newest valid records within the active
+range after canonical chronology sorting. The model metadata exposes both the
+requested and effective record counts.
+
+For historical evaluation, the same number is a trailing rolling window. When
+scoring target draw `t`, training contains at most the `N` valid draws
+immediately preceding `t`; it never contains `t` or a later draw. If fewer than
+20 earlier draws exist, that target is not evaluated. The 50-window and
+100-window results are calculated independently from identical target periods
+so they can be compared fairly.
+
+## Unified historical collision detection
+
+Create a pure shared module at `src/utils/historicalCollision.js`. Every
+generated result—random, frequency, corrected sequence, position analysis,
+greedy chain, and beam-search alternative—is passed through the same service
+before it reaches a component.
+
+Red-ball keys sort and normalize six unique values to two-digit strings, so a
+generated draw-order chain matches the conventional sorted historical result.
+When a generated result also contains a blue ball, the service additionally
+checks the normalized red-ball key plus normalized blue ball.
+
+```js
+checkHistoricalCollision(history, {
+  redBalls: [33, 2, 21, 3, 22, 15],
+  blueBall: 6 // optional
+})
+```
+
+It returns:
+
+```js
+{
+  redBallCollision: true,
+  redBallMatches: [
+    {
+      issue: '2025070',
+      openTime: '2025-06-22',
+      redBalls: [2, 3, 15, 21, 22, 33],
+      blueBall: 6,
+      drawOrder: [/* historical order when available */]
+    }
+  ],
+  fullCombinationCollision: false,
+  fullCombinationMatches: []
+}
+```
+
+All matching historical rows are returned, not only the newest match. The
+collision index is built from the complete loaded history, deliberately not the
+active analysis filter: “has this ever occurred?” always means the entire
+available historical data set. Invalid generated values throw a descriptive
+error; invalid history rows are skipped and counted in collision metadata.
+
+The result card always shows a neutral “未与历史红球组合碰撞” state when no
+red-ball match exists. A collision shows a prominent warning, the number of
+matching draws, and an expandable list containing issue, date, sorted red balls,
+blue ball, and historical draw order. Results that include a blue ball show
+separate red-only and full-combination statuses. This avoids treating a repeat
+of six red balls with a different blue ball as an exact seven-number repeat.
+
 ## Historical backtest
 
 Backtesting uses rolling-origin evaluation to prevent future-data leakage:
 
 1. Sort valid records from oldest to newest.
-2. Require 200 earlier draws before scoring begins.
-3. Before scoring a target draw, build or update the model using only earlier
-   draws.
-4. For each of the target draw's five actual adjacent decisions, pass only the
+2. Choose an evaluation horizon (Latest 50 targets, Latest 100 targets, or a
+   valid custom count) and one or more training windows.
+3. Require at least 20 earlier draws; for each target, select only the trailing
+   `trainingWindow` earlier records.
+4. Before scoring a target draw, build the model using only that trailing
+   training slice.
+5. For each of the target draw's five actual adjacent decisions, pass only the
    preceding actual numbers as context and remove numbers already seen in that
    target sequence.
-5. Record whether the actual next number appears in the model's Top 1, Top 3,
+6. Record whether the actual next number appears in the model's Top 1, Top 3,
    or Top 5 candidates.
-6. Add the target draw to training only after it has been scored.
+7. Independently generate one deterministic greedy six-red-ball set for that
+   target. To avoid using any part of the target draw, its starting number is
+   the highest-frequency valid first-position number in the training slice,
+   ties resolved by number ascending.
+8. Compare that generated set with the target draw's six red balls and record
+   an exact red-ball hit count from 0 through 6.
 
-The recent-weighted backtest applies a per-draw decay equivalent to the
-365-draw half-life before adding the newly observed draw. Results report the
-number of evaluated transitions, Top 1/3/5 hit rates, and the corresponding
+The recent-weighted backtest calculates recency ranks inside each trailing
+training slice. Results report the number of evaluated targets and transitions,
+Top 1/3/5 transition hit rates, and the corresponding
 uniform-choice baseline for the number of candidates available at each step.
 For Top K, each evaluated decision contributes
 `min(K, availableCandidateCount) / availableCandidateCount`; the displayed
 baseline is the arithmetic mean across all evaluated decisions. This evaluates
 historical ranking behavior, not future lottery predictability.
+
+Generated-set results report the distribution of red-ball matches (0–6), mean
+matches, best match count, the number of six-red-ball exact matches, and every
+target draw tied for the best result with target issue/date, generated draw
+order, sorted generated set, actual sorted set, and overlapping numbers. “中过
+一次” in this panel means an exact six-red-ball match; official双色球 prize
+tiers are intentionally not claimed because this model does not generate a
+blue ball.
 
 ## Module interface
 
@@ -219,6 +308,7 @@ that contains:
 
 - A 1–33 start-number picker.
 - Model tabs: classic adjacent, recent weighted, and second order.
+- Training-window controls: all, 50, 100, and custom draw count.
 - The active range, valid-record count, skipped-record count, and outgoing
   sample size for the selected number.
 - A ranked next-number view with raw count, correct conditional percentage, and
@@ -229,7 +319,12 @@ that contains:
 - A greedy six-number chain with per-step explanations.
 - Three beam-search alternatives with path scores.
 - A backtest section containing Top 1/3/5 rates, baseline rates, evaluated sample
-  size, and the independence disclaimer.
+  size, 0–6 generated-set match distribution, best matching target details,
+  exact-six count, 50-versus-100 window comparison, and the independence
+  disclaimer.
+- Shared historical-collision status and matching-draw details on every greedy
+  or beam result; the existing prediction generator displays the same component
+  for random, frequency, and sequence results.
 
 The panel reacts to the application's existing issue-range filter. Changing the
 range rebuilds the model and clears results that no longer match that range.
@@ -244,6 +339,8 @@ percentages that could be mistaken for measured probabilities.
   descriptive error.
 - A model is built once per active data range and selected mode, not once per
   rendered number.
+- Collision indexes are built once from the complete history and reused across
+  generation modes.
 - The full data set is small (about 3,500 draws and 17,500 first-order edges),
   so calculations remain client-side. Backtesting runs on explicit user action
   and displays a loading state.
@@ -266,6 +363,13 @@ Add Node's built-in test runner and pure-module tests covering:
   future record leaked into training.
 - Unsorted input, duplicate/missing/invalid chronology handling, exact uniform
   baseline aggregation, and an empty active filter that must remain empty.
+- Latest-50/latest-100/custom interactive windows and trailing rolling-window
+  boundaries during backtesting.
+- Generated-set overlap counts, deterministic backtest starts, best-target
+  details, and exact-six counting.
+- Red-only collision normalization across draw order, optional blue-ball exact
+  collision, multiple historical matches, complete-history scope, invalid
+  values, and no-match results.
 
 Run unit tests, the production build, and a responsive browser smoke test. The
 smoke test must verify start-number selection, model switching, evidence
@@ -284,5 +388,20 @@ expansion, chain generation, backtest output, and the existing data filter.
 - Evidence rows reproduce the source JSON's issue/date/draw-order sequence.
 - Backtest results are produced without using the target or later records for
   training.
+- 50- and 100-draw training-window backtests use the same target horizon and
+  publish comparable red-ball match distributions and best matching issues.
+- Changing the interactive training window rebuilds every displayed transition,
+  chain, and sample-size label from exactly that recent slice.
+- Every generated six-red-ball set displays whether it has ever appeared in the
+  complete history and lists all matching issue/date records; generators with a
+  blue ball also distinguish complete seven-number collisions.
 - Existing random and frequency prediction modes continue to work.
 - The page builds without errors and remains usable on narrow screens.
+
+## Deployment
+
+After unit, build, and browser verification pass, publish the commits to
+`master`. Monitor the repository's GitHub Pages workflow to successful
+completion, then verify the custom-domain page loads the new transition panel,
+the live data remains current, and a cache-busted production asset contains the
+new training-window, collision, and backtest UI.
