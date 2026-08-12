@@ -215,8 +215,15 @@ It returns:
       drawOrder: [/* historical order when available */]
     }
   ],
-  fullCombinationCollision: false,
-  fullCombinationMatches: []
+  fullCombinationCollision: true,
+  fullCombinationMatches: [
+    {
+      issue: '2025070',
+      openTime: '2025-06-22',
+      redBalls: [2, 3, 15, 21, 22, 33],
+      blueBall: 6
+    }
+  ]
 }
 ```
 
@@ -273,6 +280,20 @@ order, sorted generated set, actual sorted set, and overlapping numbers. “中�
 tiers are intentionally not claimed because this model does not generate a
 blue ball.
 
+The backtest always evaluates the model selected in the active model tab. The
+50-versus-100 comparison therefore means two training-window sizes for one
+model and one common target horizon, not a matrix of all three models. Switching
+the active model invalidates the displayed backtest and requires a new explicit
+run. This bounds runtime and keeps every result label unambiguous.
+
+The evaluation-horizon controls are Latest 50 targets, Latest 100 targets, and
+Custom. Custom accepts 1 through 500 targets. After the minimum 20 prior draws
+and active-range boundaries are applied, the newest available targets up to the
+requested count are evaluated. Metadata displays requested, effective, and
+skipped target counts. If no target is eligible, the panel returns an
+insufficient-history state; a partial horizon is valid but is labeled with its
+effective count rather than the requested count.
+
 ## Module interface
 
 The pure module exposes focused functions:
@@ -326,6 +347,14 @@ that contains:
   or beam result; the existing prediction generator displays the same component
   for random, frequency, and sequence results.
 
+The position-analysis comparison table adds a collision-status column for every
+generated row. Expanding it opens the shared matching-draw details. The rolling
+backtest table also attaches collision metadata to each generated set, but the
+default view summarizes counts; best-match rows and any historical-collision
+rows are expandable for full issue/date details. All surfaces reuse one
+`HistoricalCollisionStatus.vue` component so status wording and full-history
+scope remain identical.
+
 The panel reacts to the application's existing issue-range filter. Changing the
 range rebuilds the model and clears results that no longer match that range.
 Empty or insufficient data produces an explanatory empty state instead of zero
@@ -373,7 +402,10 @@ Add Node's built-in test runner and pure-module tests covering:
 
 Run unit tests, the production build, and a responsive browser smoke test. The
 smoke test must verify start-number selection, model switching, evidence
-expansion, chain generation, backtest output, and the existing data filter.
+expansion, chain generation, 50/100/custom training-window changes, backtest
+output, no-match/red-only/full-combination collision states, and the existing
+data filter. Add `pnpm test` before the build step in `deploy.yml`, so Pages
+deployment fails rather than publishing when the new unit tests regress.
 
 ## Acceptance criteria
 
@@ -404,4 +436,7 @@ After unit, build, and browser verification pass, publish the commits to
 `master`. Monitor the repository's GitHub Pages workflow to successful
 completion, then verify the custom-domain page loads the new transition panel,
 the live data remains current, and a cache-busted production asset contains the
-new training-window, collision, and backtest UI.
+new training-window, collision, and backtest UI. The explicit verification
+targets are the canonical production URL
+`https://xn--8ovp9s.xn--m8txu.com/union-lotto/` and its GitHub Pages mirror
+`https://jevonscode.github.io/union-lotto/`.
